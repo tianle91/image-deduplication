@@ -26,5 +26,6 @@ def read_image_as_array(input_filename):
             try:
                 image = Image.open(input_filename)
             except Exception:
+                print(f'Ignoring {input_filename}')
                 return None
         return np.array(image)
