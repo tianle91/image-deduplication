@@ -4,7 +4,7 @@ import pyheif
 from PIL import Image
 
 
-def read_image(input_filename) -> Image:
+def read_image(input_filename) -> Image.Image:
     filename = Path(input_filename).name
     filename_split = filename.split('.')
     if len(filename_split) != 2:
