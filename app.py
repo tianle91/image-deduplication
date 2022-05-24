@@ -27,25 +27,21 @@ def get_phash(input_filename: str):
         return phasher.encode_image(image_array=image_array)
 
 
-@st.cache
-def get_phash_cached(input_filename: str):
-    with SqliteDict(phash_cache_path) as db:
-        if input_filename not in db:
-            db[input_filename] = get_phash(input_filename)
-            db.commit()
-        return db[input_filename]
-
-
 @st.cache(suppress_st_warning=True)
 def get_mappings_and_grouped_duplicates(input_files):
     # populate encodings
     encodings = {}
     progress_bar = st.progress(0.)
+    db = SqliteDict(phash_cache_path)
     for i, p in enumerate(input_files):
-        p_phash = get_phash_cached(p)
-        if p_phash is not None:
-            encodings[p] = p_phash
+        if p not in db:
+            db[p] = get_phash(p)
+            db.commit()
+        phash = db[p]
+        if phash is not None:
+            encodings[p] = phash
         progress_bar.progress(i / len(input_files))
+    db.close()
     progress_bar.empty()
     # find duplicates, this should be fast
     duplicates = phasher.find_duplicates(encoding_map=encodings)
