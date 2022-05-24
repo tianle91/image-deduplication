@@ -1,11 +1,10 @@
 from pathlib import Path
 
-import numpy as np
 import pyheif
 from PIL import Image
 
 
-def read_image_as_array(input_filename):
+def read_image(input_filename) -> Image:
     filename = Path(input_filename).name
     filename_split = filename.split('.')
     if len(filename_split) != 2:
@@ -28,4 +27,4 @@ def read_image_as_array(input_filename):
             except Exception:
                 print(f'Ignoring {input_filename}')
                 return None
-        return np.array(image)
+        return image
