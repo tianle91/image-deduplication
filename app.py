@@ -15,7 +15,7 @@ PHASHER = PHash()
 PAGE_SIZE = 10
 
 
-@st.cache(max_entries=1000000, show_spinner=False)
+@st.cache(max_entries=10000, show_spinner=False)
 def read_image_and_resize(input_filename: str):
     resized_width = 400
     img = read_image(input_filename)
