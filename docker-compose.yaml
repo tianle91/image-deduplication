@@ -1,0 +1,10 @@
+version: '3.9'
+
+services:
+  scraper:
+    build:
+      context: .
+    ports:
+      - 8501:8501
+    volumes:
+      - ./input:/workdir/input
