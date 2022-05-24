@@ -14,7 +14,7 @@ phasher = PHash()
 st.title('Image Deduplication')
 
 inputdir = st.text_input(label='Input directory', value='inputdir')
-input_files = glob(os.path.join(inputdir, '*'))
+input_files = sorted(glob(os.path.join(inputdir, '*')))
 st.write(f'Found {len(input_files)} files')
 
 
