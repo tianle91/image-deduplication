@@ -3,11 +3,12 @@ from glob import glob
 
 import streamlit as st
 from imagededup.methods import PHash
-
+from sqlitedict import SqliteDict
 from convert import read_image_as_array
 from disjointset import get_grouped_duplicates
 
 tempdir = 'tempdir'
+phash_cache_path = 'phash_cache.db'
 phasher = PHash()
 
 st.title('Image Deduplication')
@@ -17,7 +18,6 @@ input_files = glob(os.path.join(inputdir, '*'))
 st.write(f'Found {len(input_files)} files')
 
 
-@st.cache(show_spinner=False, persist=True)
 def get_phash(input_filename: str):
     image_array = read_image_as_array(input_filename)
     if image_array is None:
@@ -26,13 +26,21 @@ def get_phash(input_filename: str):
         return phasher.encode_image(image_array=image_array)
 
 
-@st.cache(show_spinner=False, persist=True, suppress_st_warning=True)
+def get_phash_cached(input_filename: str):
+    with SqliteDict(phash_cache_path) as db:
+        if input_filename not in db:
+            db[input_filename] = get_phash(input_filename)
+            db.commit()
+        return db[input_filename]
+
+
+@st.cache(suppress_st_warning=True)
 def get_mappings_and_grouped_duplicates(input_files):
     # populate encodings
     encodings = {}
     progress_bar = st.progress(0.)
     for i, p in enumerate(input_files):
-        encodings[p] = get_phash(p)
+        encodings[p] = get_phash_cached(p)
         progress_bar.progress(i / len(input_files))
     progress_bar.empty()
     # find duplicates, this should be fast
