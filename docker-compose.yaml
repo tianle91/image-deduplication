@@ -7,4 +7,4 @@ services:
     ports:
       - 8501:8501
     volumes:
-      - ./input:/workdir/input
+      - "C:/photo/tchen-icloud:/input"
