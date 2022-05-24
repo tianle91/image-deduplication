@@ -24,6 +24,7 @@ def dump_input_heic_as_jpg(input_path, output_path):
 
 def convert_inputs(input_directory: str, tempdir: str = 'tempdir') -> Dict[str, Tuple[str, str]]:
 
+    os.makedirs(tempdir, exist_ok=True)
     shutil.rmtree(tempdir)
     os.makedirs(tempdir)
     filename_to_path_mapping = {}
