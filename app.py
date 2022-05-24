@@ -4,7 +4,7 @@ from glob import glob
 import streamlit as st
 from imagededup.methods import PHash
 
-from convert import convert_inputs
+from convert import read_image_as_array
 from disjointset import get_grouped_duplicates
 
 tempdir = 'tempdir'
@@ -17,20 +17,26 @@ input_files = glob(os.path.join(inputdir, '*'))
 st.write(f'Found {len(input_files)} files')
 
 
-@st.cache(show_spinner=True, max_entries=1, suppress_st_warning=True)
-def get_mappings_and_grouped_duplicates(input_files, inputdir, tempdir):
-    # input_files is here to serve as a checksum for items in inputdir
-    filename_to_path_mapping = convert_inputs(input_directory=inputdir, tempdir=tempdir)
-    encodings = phasher.encode_images(tempdir)
+@st.cache(ttl=24 * 60 * 60)  # 24hours
+def get_phash(input_filename: str):
+    image_array = read_image_as_array(input_filename)
+    if image_array is None:
+        return None
+    else:
+        return phasher.encode_image(image_array=image_array)
+
+
+@st.cache(show_spinner=True, max_entries=1)
+def get_mappings_and_grouped_duplicates(input_files):
+    encodings = {p: get_phash(p) for p in input_files}
     duplicates = phasher.find_duplicates(encoding_map=encodings)
     grouped_duplicates = get_grouped_duplicates(duplicates)
-    return filename_to_path_mapping, grouped_duplicates
+    return grouped_duplicates
 
 
 if len(input_files) > 0:
-    
-    filename_to_path_mapping, grouped_duplicates = get_mappings_and_grouped_duplicates(
-        input_files, inputdir, tempdir)
+
+    grouped_duplicates = get_mappings_and_grouped_duplicates(input_files)
 
     st.header('Deduplication')
     if len(grouped_duplicates) == 0:
@@ -42,10 +48,9 @@ if len(input_files) > 0:
             for k, v in grouped_duplicates.items():
                 with st.expander(f'{k}: {len(v)} duplicates'):
                     for p in v:
-                        original_filename, output_filename = filename_to_path_mapping[p]
-                        if not st.checkbox(label=original_filename, value=True):
-                            remove_original_files.append(original_filename)
-                        st.image(image=output_filename, width=400)
+                        if not st.checkbox(label=p, value=True):
+                            remove_original_files.append(p)
+                        st.image(image=read_image_as_array(p), width=400)
             if st.form_submit_button():
                 st.write(f'Removing {len(remove_original_files)} files.')
                 for i, remove_p in enumerate(remove_original_files):
