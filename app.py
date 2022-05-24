@@ -9,15 +9,18 @@ from sqlitedict import SqliteDict
 from convert import read_image
 from disjointset import get_grouped_duplicates
 
-tempdir = 'tempdir'
-phash_cache_path = 'phash_cache.db'
-phasher = PHash()
+TEMPDIR = 'tempdir'
+PHASH_CACHE_PATH = 'phash_cache.db'
+PHASHER = PHash()
+PAGE_SIZE = 10
 
 
-@st.cache(max_entries=1000000)
+@st.cache(max_entries=1000000, show_spinner=False)
 def read_image_and_resize(input_filename: str):
     resized_width = 400
     img = read_image(input_filename)
+    if img is None:
+        return None
     w, h = img.width, img.height
     proportional = min(resized_width / w, 1.)
     resized_h = int(h * proportional)
@@ -28,8 +31,7 @@ def get_phash(input_filename: str):
     img = read_image_and_resize(input_filename)
     if img is None:
         return None
-    else:
-        return phasher.encode_image(image_array=np.array(img))
+    return PHASHER.encode_image(image_array=np.array(img))
 
 
 @st.cache(show_spinner=False, suppress_st_warning=True)
@@ -37,24 +39,22 @@ def get_mappings_and_grouped_duplicates(input_files):
     # populate encodings
     encodings = {}
     progress_bar = st.progress(0.)
-    db = SqliteDict(phash_cache_path)
-    for i, p in enumerate(input_files):
-        if p not in db:
-            db[p] = get_phash(p)
-            db.commit()
-        phash = db[p]
-        if phash is not None:
-            encodings[p] = phash
-        progress_bar.progress(i / len(input_files))
-    db.close()
+    with SqliteDict(PHASH_CACHE_PATH) as db:
+        for i, p in enumerate(input_files):
+            if p not in db:
+                db[p] = get_phash(p)
+                db.commit()
+            phash = db[p]
+            if phash is not None:
+                encodings[p] = phash
+            progress_bar.progress(i / len(input_files))
     progress_bar.empty()
-
-    if len(encodings) > 0:
-        # find duplicates, this should be fast
-        duplicates = phasher.find_duplicates(encoding_map=encodings)
-        grouped_duplicates = get_grouped_duplicates(duplicates)
-        return grouped_duplicates
-    return {}
+    # find grouped duplicates
+    if len(encodings) == 0:
+        return {}
+    duplicates = PHASHER.find_duplicates(encoding_map=encodings)
+    grouped_duplicates = get_grouped_duplicates(duplicates)
+    return grouped_duplicates
 
 
 with st.sidebar:
@@ -67,29 +67,33 @@ with st.sidebar:
         num_groups = len(grouped_duplicates)
     st.write(f'Found {num_groups} grouped duplicates.')
 
-    page_size = 10
-    grouped_keys = list(grouped_duplicates.keys())
-    grouped_keys_by_page = [
-        grouped_keys[page_num:min(num_groups, page_num + page_size)]
-        for page_num in range(0, num_groups, page_size)
-    ]
+
+grouped_keys = list(grouped_duplicates.keys())
+grouped_keys_by_page = [
+    grouped_keys[page_num:min(num_groups, page_num + PAGE_SIZE)]
+    for page_num in range(0, num_groups, PAGE_SIZE)
+]
+num_pages = len(grouped_keys_by_page)
+
+with st.sidebar:
     current_page = st.selectbox(
-        label='Current page',
-        options=list(range(len(grouped_keys_by_page)))
+        label=f'Current page (out of {num_pages})',
+        options=list(range(num_pages))
     )
 
 
-deduplication_readme = '''
+DEDUPLICATION_README = '''
 # Deduplication
 
 Uncheck the items you want to remove.
 - [ ] This will be removed
 - [x] This will not be removed
 '''
-if len(grouped_duplicates) > 0:
-    st.markdown(deduplication_readme)
-    original_files_to_remove = []
 
+original_files_to_remove = []
+
+if len(grouped_duplicates) > 0:
+    st.markdown(DEDUPLICATION_README)
     with st.form('select photos to remove for current page'):
         page_photo_checked = {}
         for i, k in enumerate(grouped_keys_by_page[current_page]):
@@ -104,7 +108,6 @@ if len(grouped_duplicates) > 0:
                     original_files_to_remove.append(p)
                 elif p in original_files_to_remove:
                     original_files_to_remove.remove(p)
-
 
 with st.sidebar:
     st.write(f'Will be removing {len(original_files_to_remove)} files.')
