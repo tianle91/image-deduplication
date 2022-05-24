@@ -17,7 +17,7 @@ input_files = glob(os.path.join(inputdir, '*'))
 st.write(f'Found {len(input_files)} files')
 
 
-@st.cache(ttl=24 * 60 * 60)  # 24hours
+@st.cache(show_spinner=False, persist=True)
 def get_phash(input_filename: str):
     image_array = read_image_as_array(input_filename)
     if image_array is None:
@@ -26,9 +26,16 @@ def get_phash(input_filename: str):
         return phasher.encode_image(image_array=image_array)
 
 
-@st.cache(show_spinner=True, max_entries=1)
+@st.cache(show_spinner=False, persist=True, suppress_st_warning=True)
 def get_mappings_and_grouped_duplicates(input_files):
-    encodings = {p: get_phash(p) for p in input_files}
+    # populate encodings
+    encodings = {}
+    progress_bar = st.progress(0.)
+    for i, p in enumerate(input_files):
+        encodings[p] = get_phash(p)
+        progress_bar.progress(i / len(input_files))
+    progress_bar.empty()
+    # find duplicates, this should be fast
     duplicates = phasher.find_duplicates(encoding_map=encodings)
     grouped_duplicates = get_grouped_duplicates(duplicates)
     return grouped_duplicates
