@@ -14,7 +14,7 @@ st.title('Image Deduplication')
 
 inputdir = st.text_input(label='Input directory', value='inputdir')
 input_files = glob(os.path.join(inputdir, '*'))
-print('\n'.join(input_files[:5]))
+st.write(f'Found {len(input_files)} files')
 
 
 @st.cache(show_spinner=True, max_entries=1, suppress_st_warning=True)
