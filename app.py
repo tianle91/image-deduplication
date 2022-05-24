@@ -47,6 +47,7 @@ if len(input_files) > 0:
                             remove_original_files.append(original_filename)
                         st.image(image=output_filename, width=400)
             if st.form_submit_button():
+                st.write(f'Removing {len(remove_original_files)} files.')
                 for i, remove_p in enumerate(remove_original_files):
                     st.write(f'[{i}/{len(remove_original_files)}] {remove_p}')
                     os.remove(path=remove_p)
