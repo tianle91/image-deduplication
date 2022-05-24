@@ -35,17 +35,21 @@ def convert_inputs(input_directory: str, tempdir: str = 'tempdir') -> Dict[str, 
     for i, input_path in enumerate(files):
 
         filename = Path(input_path).name
-        filename_extension = filename.split('.')[1].lower()
-        output_filename = filename.split('.')[0] + '.jpg'
-        output_path = os.path.join(tempdir, output_filename)
-
-        if filename_extension == 'heic':
-            dump_input_heic_as_jpg(input_path, output_path)
-        elif filename_extension == 'jpg':
-            shutil.copyfile(input_path, output_path)
-        else:
+        filename_split = filename.split('.')
+        if len(filename_split) != 2:
             print(f'Ignoring {input_path}')
             continue
+        else:
+            filename_extension = filename.split('.')[1].lower()
+            output_filename = filename.split('.')[0] + '.jpg'
+            output_path = os.path.join(tempdir, output_filename)
+            if filename_extension == 'heic':
+                dump_input_heic_as_jpg(input_path, output_path)
+            elif filename_extension == 'jpg':
+                shutil.copyfile(input_path, output_path)
+            else:
+                print(f'Ignoring {input_path}')
+                continue
 
         filename_to_path_mapping[output_filename] = (input_path, output_path)
         progress_bar.progress(i / len(files))
