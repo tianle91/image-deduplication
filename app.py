@@ -8,6 +8,7 @@ from sqlitedict import SqliteDict
 
 from convert import read_image
 from disjointset import get_grouped_duplicates
+import pandas as pd
 
 TEMPDIR = 'tempdir'
 PHASH_CACHE_PATH = 'phash_cache.db'
@@ -90,29 +91,39 @@ Uncheck the items you want to remove.
 - [x] This will not be removed
 '''
 
-original_files_to_remove = []
 
 if len(grouped_duplicates) > 0:
     st.markdown(DEDUPLICATION_README)
     with st.form('select photos to remove for current page'):
+        original_files_to_remove = st.session_state.get('original_files_to_remove', [])
+
         page_photo_checked = {}
         for i, k in enumerate(grouped_keys_by_page[current_page]):
             v = grouped_duplicates[k]
-            with st.expander(f'{k}: {len(v)} duplicates'):
+            with st.expander(f'{k}: {len(v)} duplicates', expanded=True):
                 for p in grouped_duplicates[k]:
-                    page_photo_checked[p] = st.checkbox(label=p, value=True)
+                    page_photo_checked[p] = st.checkbox(
+                        label=p, value=p not in original_files_to_remove)
                     st.image(image=read_image_and_resize(p), width=400)
+
         if st.form_submit_button(label='Add to deletion list'):
             for p, checked in page_photo_checked.items():
                 if not checked and p not in original_files_to_remove:
                     original_files_to_remove.append(p)
                 elif p in original_files_to_remove:
                     original_files_to_remove.remove(p)
+            st.session_state['original_files_to_remove'] = original_files_to_remove.copy()
 
 with st.sidebar:
+    original_files_to_remove = st.session_state.get('original_files_to_remove', [])
     st.write(f'Will be removing {len(original_files_to_remove)} files.')
+    st.dataframe(pd.DataFrame({'to remove': original_files_to_remove}))
     if st.button('Remove'):
-        for i, remove_p in enumerate(original_files_to_remove):
-            st.write(f'[{i}/{len(original_files_to_remove)}] {remove_p}')
-            os.remove(path=remove_p)
-        st.success(f'Removed {len(original_files_to_remove)} files!')
+        with st.spinner('Removing...'):
+            progress_bar = st.progress(0.)
+            for i, remove_p in enumerate(original_files_to_remove):
+                progress_bar.progress(i / len(original_files_to_remove))
+                os.remove(path=remove_p)
+            progress_bar.empty()
+        st.success(f'Removed {len(original_files_to_remove)} files! Reload to continue.')
+        st.stop()
