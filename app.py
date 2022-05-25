@@ -1,54 +1,118 @@
 import os
 from glob import glob
 
+import numpy as np
 import streamlit as st
 from imagededup.methods import PHash
+from sqlitedict import SqliteDict
 
-from convert import convert_inputs
+from convert import read_image
 from disjointset import get_grouped_duplicates
 
-tempdir = 'tempdir'
-phasher = PHash()
-
-st.title('Image Deduplication')
-
-inputdir = st.text_input(label='Input directory', value='inputdir')
-input_files = glob(os.path.join(inputdir, '*'))
-st.write(f'Found {len(input_files)} files')
+TEMPDIR = 'tempdir'
+PHASH_CACHE_PATH = 'phash_cache.db'
+PHASHER = PHash()
+PAGE_SIZE = 10
 
 
-@st.cache(show_spinner=True, max_entries=1, suppress_st_warning=True)
-def get_mappings_and_grouped_duplicates(input_files, inputdir, tempdir):
-    # input_files is here to serve as a checksum for items in inputdir
-    filename_to_path_mapping = convert_inputs(input_directory=inputdir, tempdir=tempdir)
-    encodings = phasher.encode_images(tempdir)
-    duplicates = phasher.find_duplicates(encoding_map=encodings)
+@st.cache(max_entries=10000, show_spinner=False)
+def read_image_and_resize(input_filename: str):
+    resized_width = 400
+    img = read_image(input_filename)
+    if img is None:
+        return None
+    w, h = img.width, img.height
+    proportional = min(resized_width / w, 1.)
+    resized_h = int(h * proportional)
+    return img.resize((resized_width, resized_h))
+
+
+def get_phash(input_filename: str):
+    img = read_image_and_resize(input_filename)
+    if img is None:
+        return None
+    return PHASHER.encode_image(image_array=np.array(img))
+
+
+@st.cache(show_spinner=False, suppress_st_warning=True)
+def get_mappings_and_grouped_duplicates(input_files):
+    # populate encodings
+    encodings = {}
+    progress_bar = st.progress(0.)
+    with SqliteDict(PHASH_CACHE_PATH) as db:
+        for i, p in enumerate(input_files):
+            if p not in db:
+                db[p] = get_phash(p)
+                db.commit()
+            phash = db[p]
+            if phash is not None:
+                encodings[p] = phash
+            progress_bar.progress(i / len(input_files))
+    progress_bar.empty()
+    # find grouped duplicates
+    if len(encodings) == 0:
+        return {}
+    duplicates = PHASHER.find_duplicates(encoding_map=encodings)
     grouped_duplicates = get_grouped_duplicates(duplicates)
-    return filename_to_path_mapping, grouped_duplicates
+    return grouped_duplicates
 
 
-if len(input_files) > 0:
-    
-    filename_to_path_mapping, grouped_duplicates = get_mappings_and_grouped_duplicates(
-        input_files, inputdir, tempdir)
+with st.sidebar:
+    st.title('Image Deduplication')
+    inputdir = st.text_input(label='Input directory', value='/input')
+    input_files = sorted(glob(os.path.join(inputdir, '*')))
+    st.write(f'Found {len(input_files)} files')
+    with st.spinner('Finding duplicates'):
+        grouped_duplicates = get_mappings_and_grouped_duplicates(input_files)
+        num_groups = len(grouped_duplicates)
+    st.write(f'Found {num_groups} grouped duplicates.')
 
-    st.header('Deduplication')
-    if len(grouped_duplicates) == 0:
-        st.success('No duplicates found!')
-    else:
-        with st.form('Deduplication'):
-            st.text('Uncheck the items you want to remove.')
-            remove_original_files = []
-            for k, v in grouped_duplicates.items():
-                with st.expander(f'{k}: {len(v)} duplicates'):
-                    for p in v:
-                        original_filename, output_filename = filename_to_path_mapping[p]
-                        if not st.checkbox(label=original_filename, value=True):
-                            remove_original_files.append(original_filename)
-                        st.image(image=output_filename, width=400)
-            if st.form_submit_button():
-                st.write(f'Removing {len(remove_original_files)} files.')
-                for i, remove_p in enumerate(remove_original_files):
-                    st.write(f'[{i}/{len(remove_original_files)}] {remove_p}')
-                    os.remove(path=remove_p)
-                st.success(f'Removed {len(remove_original_files)} files!')
+
+grouped_keys = list(grouped_duplicates.keys())
+grouped_keys_by_page = [
+    grouped_keys[page_num:min(num_groups, page_num + PAGE_SIZE)]
+    for page_num in range(0, num_groups, PAGE_SIZE)
+]
+num_pages = len(grouped_keys_by_page)
+
+with st.sidebar:
+    current_page = st.selectbox(
+        label=f'Current page (out of {num_pages})',
+        options=list(range(num_pages))
+    )
+
+
+DEDUPLICATION_README = '''
+# Deduplication
+
+Uncheck the items you want to remove.
+- [ ] This will be removed
+- [x] This will not be removed
+'''
+
+original_files_to_remove = []
+
+if len(grouped_duplicates) > 0:
+    st.markdown(DEDUPLICATION_README)
+    with st.form('select photos to remove for current page'):
+        page_photo_checked = {}
+        for i, k in enumerate(grouped_keys_by_page[current_page]):
+            v = grouped_duplicates[k]
+            with st.expander(f'{k}: {len(v)} duplicates'):
+                for p in grouped_duplicates[k]:
+                    page_photo_checked[p] = st.checkbox(label=p, value=True)
+                    st.image(image=read_image_and_resize(p), width=400)
+        if st.form_submit_button(label='Add to deletion list'):
+            for p, checked in page_photo_checked.items():
+                if not checked and p not in original_files_to_remove:
+                    original_files_to_remove.append(p)
+                elif p in original_files_to_remove:
+                    original_files_to_remove.remove(p)
+
+with st.sidebar:
+    st.write(f'Will be removing {len(original_files_to_remove)} files.')
+    if st.button('Remove'):
+        for i, remove_p in enumerate(original_files_to_remove):
+            st.write(f'[{i}/{len(original_files_to_remove)}] {remove_p}')
+            os.remove(path=remove_p)
+        st.success(f'Removed {len(original_files_to_remove)} files!')

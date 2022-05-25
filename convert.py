@@ -1,58 +1,34 @@
-import os
-import shutil
-from glob import glob
 from pathlib import Path
-from typing import Dict, Tuple
 
 import pyheif
-import streamlit as st
 from PIL import Image
 
 
-def dump_input_heic_as_jpg(input_path, output_path):
-    heif_file = pyheif.read(input_path)
-    image = Image.frombytes(
-        heif_file.mode,
-        heif_file.size,
-        heif_file.data,
-        "raw",
-        heif_file.mode,
-        heif_file.stride,
-    )
-    image.save(output_path, "JPEG")
-
-
-def convert_inputs(input_directory: str, tempdir: str = 'tempdir') -> Dict[str, Tuple[str, str]]:
-
-    os.makedirs(tempdir, exist_ok=True)
-    shutil.rmtree(tempdir)
-    os.makedirs(tempdir)
-    filename_to_path_mapping = {}
-
-    files = glob(os.path.join(input_directory, '*'))
-    progress_bar = st.progress(0.)
-
-    for i, input_path in enumerate(files):
-
-        filename = Path(input_path).name
-        filename_split = filename.split('.')
-        if len(filename_split) != 2:
-            print(f'Ignoring {input_path}')
-            continue
+def read_image(input_filename) -> Image.Image:
+    filename = Path(input_filename).name
+    filename_split = filename.split('.')
+    if len(filename_split) != 2:
+        print(f'Ignoring {input_filename} because it has no extension.')
+        return None
+    else:
+        filename_extension = filename.split('.')[1].lower()
+        if filename_extension == 'heic':
+            heif_file = pyheif.read(input_filename)
+            image = Image.frombytes(
+                heif_file.mode,
+                heif_file.size,
+                heif_file.data,
+                "raw",
+                heif_file.mode,
+                heif_file.stride,
+            )
+        elif filename_extension in ('mov', 'mp4'):
+            print(f'Ignoring {input_filename} because it is a video.')
+            return None
         else:
-            filename_extension = filename.split('.')[1].lower()
-            output_filename = filename.split('.')[0] + '.jpg'
-            output_path = os.path.join(tempdir, output_filename)
-            if filename_extension == 'heic':
-                dump_input_heic_as_jpg(input_path, output_path)
-            elif filename_extension == 'jpg':
-                shutil.copyfile(input_path, output_path)
-            else:
-                print(f'Ignoring {input_path}')
-                continue
-
-        filename_to_path_mapping[output_filename] = (input_path, output_path)
-        progress_bar.progress(i / len(files))
-
-    progress_bar.empty()
-    return filename_to_path_mapping
+            try:
+                image = Image.open(input_filename)
+            except Exception:
+                print(f'Ignoring {input_filename} because it cannot be openend.')
+                return None
+        return image
