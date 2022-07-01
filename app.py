@@ -61,8 +61,10 @@ def get_mappings_and_grouped_duplicates(input_files):
 with st.sidebar:
     st.title('Image Deduplication')
     inputdir = st.text_input(label='Input directory', value='/input')
-    input_files = sorted(glob(os.path.join(inputdir, '*')))
-    st.write(f'Found {len(input_files)} files')
+    p = os.path.join(inputdir, '**', '*')
+    with st.spinner(f'Finding files in `{p}`'):
+        input_files = sorted(glob(p, recursive=True))
+    st.write(f'Found {len(input_files)} files in `{p}`')
     with st.spinner('Finding duplicates'):
         grouped_duplicates = get_mappings_and_grouped_duplicates(input_files)
         num_groups = len(grouped_duplicates)
