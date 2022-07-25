@@ -1,3 +1,5 @@
+![icon](icon.png)
+
 # Image Deduplication
 Deduplicate your photos using perceptual hashing.
 ![demo](demo.jpg "demo of interface")
