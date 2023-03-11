@@ -2,13 +2,13 @@ import os
 from glob import glob
 
 import numpy as np
+import pandas as pd
 import streamlit as st
 from imagededup.methods import PHash
 from sqlitedict import SqliteDict
 
 from convert import read_image
 from disjointset import get_grouped_duplicates
-import pandas as pd
 
 TEMPDIR = 'tempdir'
 PHASH_CACHE_PATH = 'phash_cache.db'
