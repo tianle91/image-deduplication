@@ -58,13 +58,8 @@ def get_mappings_and_grouped_duplicates(input_files):
     return grouped_duplicates
 
 
-with st.sidebar:
-    st.title('Image Deduplication')
-    inputdir = st.text_input(label='Input directory', value='/input')
-    ignorestrs = st.text_input(
-        label='Ignore strings', value='@eaDir,', help='Separate strings with comman: `,`')
-    ignorestrs = [s.strip() for s in ignorestrs.split(',')]
-    ignorestrs = [s for s in ignorestrs if len(s) > 0]
+@st.experimental_singleton(show_spinner=False)
+def get_input_files(inputdir, ignorestrs):
     p = os.path.join(inputdir, '**', '*')
     with st.spinner(f'Finding files in `{p}` ignoring paths with {", ".join(ignorestrs)}...'):
         input_files = sorted(glob(p, recursive=True))
@@ -72,7 +67,18 @@ with st.sidebar:
             s for s in input_files
             if all([ignorestr not in s for ignorestr in ignorestrs])
         ]
-    st.write(f'Found {len(input_files)} files in `{p}`')
+    return input_files
+
+
+with st.sidebar:
+    st.title('Image Deduplication')
+    inputdir = st.text_input(label='Input directory', value='/input')
+    ignorestrs = st.text_input(
+        label='Ignore strings', value='@eaDir,', help='Separate strings with comman: `,`')
+    ignorestrs = [s.strip() for s in ignorestrs.split(',')]
+    ignorestrs = [s for s in ignorestrs if len(s) > 0]
+    input_files = get_input_files(inputdir=inputdir, ignorestrs=ignorestrs)
+    st.write(f'Found {len(input_files)} files.')
     with st.spinner('Finding duplicates'):
         grouped_duplicates = get_mappings_and_grouped_duplicates(input_files)
         num_groups = len(grouped_duplicates)
@@ -136,4 +142,5 @@ with st.sidebar:
                 os.remove(path=remove_p)
             progress_bar.empty()
         st.success(f'Removed {len(original_files_to_remove)} files! Reload to continue.')
+        get_input_files.clear()
         st.stop()
