@@ -66,7 +66,10 @@ with st.sidebar:
     p = os.path.join(inputdir, '**', '*')
     with st.spinner(f'Finding files in `{p}` ignoring {", ".join(ignorestrs)}...'):
         input_files = sorted(glob(p, recursive=True))
-        input_files = [s for s in input_files if all([ignorestr not in s for ignorestr in ignorestrs])]
+        input_files = [
+            s for s in input_files
+            if all([ignorestr not in s for ignorestr in ignorestrs])
+        ]
     st.write(f'Found {len(input_files)} files in `{p}`')
     with st.spinner('Finding duplicates'):
         grouped_duplicates = get_mappings_and_grouped_duplicates(input_files)
