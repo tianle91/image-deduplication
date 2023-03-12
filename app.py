@@ -61,10 +61,12 @@ def get_mappings_and_grouped_duplicates(input_files):
 with st.sidebar:
     st.title('Image Deduplication')
     inputdir = st.text_input(label='Input directory', value='/input')
-    ignorestrs = st.text_input(label='Ignore strings', value='@eaDir,')
+    ignorestrs = st.text_input(
+        label='Ignore strings', value='@eaDir,', help='Separate strings with comman: `,`')
     ignorestrs = [s.strip() for s in ignorestrs.split(',')]
+    ignorestrs = [s for s in ignorestrs if len(s) > 0]
     p = os.path.join(inputdir, '**', '*')
-    with st.spinner(f'Finding files in `{p}` ignoring {", ".join(ignorestrs)}...'):
+    with st.spinner(f'Finding files in `{p}` ignoring paths with {", ".join(ignorestrs)}...'):
         input_files = sorted(glob(p, recursive=True))
         input_files = [
             s for s in input_files
