@@ -119,7 +119,9 @@ if len(grouped_duplicates) > 0:
             with st.expander(f'{k}: {len(v)} duplicates', expanded=True):
                 for p in grouped_duplicates[k]:
                     page_photo_checked[p] = st.checkbox(
-                        label=p, value=p not in original_files_to_remove)
+                        label=f'File: {p} Size: {os.path.getsize(p) / (1024**2)} Mb',
+                        value=p not in original_files_to_remove,
+                    )
                     st.image(image=read_image_and_resize(p), width=400)
 
         if st.form_submit_button(label='Add to deletion list'):
