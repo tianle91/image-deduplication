@@ -1,3 +1,4 @@
+import logging
 import os
 from glob import glob
 
@@ -9,6 +10,8 @@ from sqlitedict import SqliteDict
 
 from convert import read_image
 from disjointset import get_grouped_duplicates
+
+logger = logging.getLogger(__name__)
 
 TEMPDIR = "tempdir"
 PHASH_CACHE_PATH = "phash_cache.db"
@@ -33,12 +36,14 @@ def get_phash(input_filename: str):
     if img is None:
         return None
     image_array = np.array(img)
-    if image_array.shape[2] != 3:
-        raise ValueError(
-            f'Error reading {input_filename}. '
-            f'Expecting (x, y, 3) but received {image_array.shape}'
+    if image_array.shape[2] > 3:
+        logger.info(
+            f"Reading {input_filename} "
+            f"expecting (x, y, 3) but received {image_array.shape}. "
+            "Taking slice [:,:,:3]."
         )
-    return PHASHER.encode_image(image_array=np.array(img))
+        image_array = image_array[:, :, :3]
+    return PHASHER.encode_image(image_array=image_array)
 
 
 @st.cache_resource(show_spinner=False)
