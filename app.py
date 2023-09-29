@@ -32,6 +32,12 @@ def get_phash(input_filename: str):
     img = read_image_and_resize(input_filename)
     if img is None:
         return None
+    image_array = np.array(img)
+    if image_array.shape[2] != 3:
+        raise ValueError(
+            f'Error reading {input_filename}. '
+            f'Expecting (x, y, 3) but received {image_array.shape}'
+        )
     return PHASHER.encode_image(image_array=np.array(img))
 
 
