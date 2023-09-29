@@ -8,4 +8,13 @@ services:
       - 8501:8501
     volumes:
       - .:/workdir
-      - "C:/Syncthing/tchen-home/Photos:/input"
+      - "/storage/syncthing/tchen-homes/tchen/Photos:/input"
+    deploy:
+      restart_policy:
+        condition: on-failure
+      # uncomment the following for gpu
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            capabilities: [gpu]

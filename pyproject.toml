@@ -1,0 +1,27 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"
+
+[tool.poetry]
+name = "PYTHON TEMPLATE"
+version = "0"
+description = ""
+authors = ["Tianle Chen <tianlechen@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">3.9.7,<3.11" # should match Dockerfile
+streamlit = "^1.27.1"
+sqlitedict = "^2.1.0"
+pyheif = "^0.7.1"
+torch = ">=2.0.0, !=2.0.1" # required by imagededup, skip 2.0.1 due to https://github.com/pytorch/pytorch/issues/100974
+imagededup = "^0.3.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+pre-commit = "^3.2.2"
+black = "23.3.0" # should match .pre-commit-config.yaml
+isort = "5.12.0" # should match .pre-commit-config.yaml

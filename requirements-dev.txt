@@ -1,5 +1,0 @@
-isort
-pylint
-autopep8
-pytest
-flake8

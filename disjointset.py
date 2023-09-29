@@ -57,9 +57,5 @@ def get_grouped_duplicates(duplicates: Dict[str, List[str]]) -> Dict[str, List[s
         parent_duplicates.append(k)
         grouped_duplicates[parent_k] = parent_duplicates
 
-    grouped_duplicates = {
-        k: v
-        for k, v in grouped_duplicates.items()
-        if len(v) > 1
-    }
+    grouped_duplicates = {k: v for k, v in grouped_duplicates.items() if len(v) > 1}
     return grouped_duplicates

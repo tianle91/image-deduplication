@@ -1,5 +1,5 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.238.0/containers/docker-existing-dockerfile
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.245.2/containers/docker-existing-dockerfile
 {
 	"name": "Existing Dockerfile",
 
@@ -7,11 +7,15 @@
 	"context": "..",
 
 	// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
-	"dockerFile": "../Dockerfile",
+	"dockerFile": "../dev.Dockerfile",
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"ms-python.python"
+				"ms-python.python",
+				"bungcip.better-toml",
+				"ms-vscode.makefile-tools",
+				"ms-azuretools.vscode-docker",
+				"redhat.vscode-xml"
 			]
 		}
 	}

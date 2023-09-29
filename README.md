@@ -1,12 +1,7 @@
-![icon](icon.png)
+# python-template
+Template intended for development in a container specified by `dev.Dockerfile`.
+See configuration in `.devcontainer/devcontainer.json`.
 
-# Image Deduplication
-Deduplicate your photos using perceptual hashing.
-![demo](demo.jpg "demo of interface")
-
-Just run `docker-compose up` and then navigate to [localhost:8501](http://localhost:8501).
-If you want to attach a local volume, just make the change on [docker-compose.yaml](docker-compose.yaml), replacing `C:/photo/tchen-icloud` with whatever you want.
-
-
-## Notes
-Failed on synology with some weird error code - likely due to no AVX.
+Commands in `Makefile`:
+- `make .venv` creates a virtual environment in `.venv` folder.
+- `make test` runs tests.
