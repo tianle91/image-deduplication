@@ -4,6 +4,7 @@ from typing import Optional
 
 import pyheif
 from PIL import Image
+import logging
 
 logger = logging.getLogger(__name__)
 
