@@ -8,8 +8,8 @@ import streamlit as st
 from imagededup.methods import PHash
 from sqlitedict import SqliteDict
 
-from convert import read_image
-from disjointset import get_grouped_duplicates
+from image_dedup.convert import read_image
+from image_dedup.disjointset import get_grouped_duplicates
 
 logger = logging.getLogger(__name__)
 
