@@ -8,7 +8,7 @@ RUN apt update -y && apt install git
 # make sure these match tox.ini
 RUN pip install tox==3.26.0 poetry==1.3.2 tox-poetry-installer==0.10.2
 
-COPY . /work
-WORKDIR /work
+COPY . /workdir
+WORKDIR /workdir
 RUN make .venv
 ENTRYPOINT [ ".venv/bin/python", "-m", "streamlit", "run", "app.py" ]
