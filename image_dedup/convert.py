@@ -5,6 +5,7 @@ from typing import Optional
 import pyheif
 from PIL import Image
 
+logger = logging.getLogger(__name__)
 
 def read_heic_image(input_filename: str) -> Image.Image:
     heif_file = pyheif.read(input_filename)
@@ -26,12 +27,12 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
 
     filename_split = filename.split(".")
     if len(filename_split) != 2:
-        print(f"Ignoring {input_filename} because it has no extension.")
+        logger.info(f"Ignoring {input_filename} because it has no extension.")
         return None
 
     filename_extension = filename.split(".")[1].lower()
     if filename_extension in ("mov", "mp4"):
-        print(f"Ignoring {input_filename} because it is a video.")
+        logger.info(f"Ignoring {input_filename} because it is a video.")
         return None
     # maybe it's an image at this point
     if filename_extension == "heic":
@@ -41,4 +42,13 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
             image = Image.open(input_filename)
             return image
         except Exception:
-            print(f"Ignoring {input_filename} because it cannot be opened.")
+            logger.warning(f"Ignoring {input_filename} because it cannot be opened.")
+
+
+def get_resized_image(img: Image.Image, max_width = 400) -> Image.Image:
+    w, h = img.size
+    if w < max_width:
+        return img
+    else:
+        scale = max_width / w
+        return img.resize(max_width, scale * h)

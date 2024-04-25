@@ -5,71 +5,51 @@ from glob import glob
 import numpy as np
 import pandas as pd
 import streamlit as st
-from imagededup.methods import PHash
-from sqlitedict import SqliteDict
 
-from image_dedup.convert import read_image
+from sqlitedict import SqliteDict
+from typing import Tuple
+from image_dedup.convert import read_image, get_resized_image
 from image_dedup.disjointset import get_grouped_duplicates
+from image_dedup.phash import get_phash
+from multiprocessing import Pool
+from typing import List, Dict
+from sklearn.cluster import DBSCAN
 
 logger = logging.getLogger(__name__)
 
-TEMPDIR = "tempdir"
-PHASH_CACHE_PATH = "phash_cache.db"
-PHASHER = PHash()
+PHASH_DB = "phash.db"
 PAGE_SIZE = 10
 
-
-@st.cache_resource(max_entries=100000, show_spinner=False)
-def read_image_and_resize(input_filename: str):
-    resized_width = 400
+def get_preview_and_phash(input_filename: str) -> Tuple[np.ndarray, str]:
     img = read_image(input_filename)
     if img is None:
-        return None
-    w, h = img.width, img.height
-    proportional = min(resized_width / w, 1.0)
-    resized_h = int(h * proportional)
-    return img.resize((resized_width, resized_h))
+        return (None, None)
+    img = get_resized_image(img=img)
+    return img, get_phash(img=img)
 
+def get_preview_and_phash_cached(input_filename: str) -> Tuple[np.ndarray, str]:
+    with SqliteDict(PHASH_DB) as db:
+        if p not in db:
+            db[p] = get_preview_and_phash(input_filename=input_filename)
+            db.commit()
+        return db[p]
 
-def get_phash(input_filename: str):
-    img = read_image_and_resize(input_filename)
-    if img is None:
-        return None
-    image_array = np.array(img)
-    if image_array.shape[2] > 3:
-        logger.info(
-            f"Reading {input_filename} "
-            f"expecting (x, y, 3) but received {image_array.shape}. "
-            "Taking slice [:,:,:3]."
-        )
-        image_array = image_array[:, :, :3]
-    return PHASHER.encode_image(image_array=image_array)
-
-
-@st.cache_resource(show_spinner=False)
-def get_mappings_and_grouped_duplicates(input_files):
-    # populate encodings
-    encodings = {}
-    progress_bar = st.progress(0.0)
-    with SqliteDict(PHASH_CACHE_PATH) as db:
-        for i, p in enumerate(input_files):
-            if p not in db:
-                db[p] = get_phash(p)
-                db.commit()
-            phash = db[p]
-            if phash is not None:
-                encodings[p] = phash
-            progress_bar.progress(i / len(input_files))
-    progress_bar.empty()
-    # find grouped duplicates
-    if len(encodings) == 0:
-        return {}
-    duplicates = PHASHER.find_duplicates(encoding_map=encodings)
-    grouped_duplicates = get_grouped_duplicates(duplicates)
+@st.cache_resource(show_spinner=True)
+def get_grouped_duplicates(input_files: List[str]) -> Dict[int, List[str]]:
+    with Pool(processes=4) as pool:
+        phashes = pool.map(get_preview_and_phash_cached, input_files)
+    vecs = [
+        [int(c, 16) for c in phash]
+        for phash in phashes
+    ]
+    clustering = DBSCAN(min_samples=2).fit(vecs)
+    grouped_duplicates = []
+    for i, label in enumerate(clustering.labels_):
+        grouped_duplicates[label] = grouped_duplicates.get(label, []) + [input_files[i]]
     return grouped_duplicates
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=True)
 def get_input_files(inputdir, ignorestrs):
     p = os.path.join(inputdir, "**", "*")
     with st.spinner(
@@ -86,7 +66,7 @@ def get_input_files(inputdir, ignorestrs):
 
 with st.sidebar:
     st.title("Image Deduplication")
-    inputdir = st.text_input(label="Input directory", value="/input")
+    inputdir = st.text_input(label="Input directory", value="/input").strip()
     ignorestrs = st.text_input(
         label="Ignore strings",
         value="@eaDir,",
@@ -96,8 +76,9 @@ with st.sidebar:
     ignorestrs = [s for s in ignorestrs if len(s) > 0]
     input_files = get_input_files(inputdir=inputdir, ignorestrs=ignorestrs)
     st.write(f"Found {len(input_files)} files.")
+
     with st.spinner("Finding duplicates"):
-        grouped_duplicates = get_mappings_and_grouped_duplicates(input_files)
+        grouped_duplicates = get_grouped_duplicates(input_files)
         num_groups = len(grouped_duplicates)
     st.write(f"Found {num_groups} grouped duplicates.")
 
@@ -138,7 +119,7 @@ if len(grouped_duplicates) > 0:
                         label=f"File: {p} Size: {os.path.getsize(p) / (1024**2):.2f} Mb",
                         value=p not in original_files_to_remove,
                     )
-                    st.image(image=read_image_and_resize(p), width=400)
+                    st.image(image=get_preview_and_phash_cached(p)[0], width=400)
 
         if st.form_submit_button(label="Add to deletion list"):
             for p, checked in page_photo_checked.items():
