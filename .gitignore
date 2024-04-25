@@ -131,6 +131,5 @@ dmypy.json
 # os
 .DS_Store
 
-inputdir
-tempdir
+testdir
 *.db

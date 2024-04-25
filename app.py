@@ -1,51 +1,63 @@
 import logging
 import os
 from glob import glob
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-
+from sklearn.cluster import DBSCAN
+from sklearn.metrics import pairwise_distances
 from sqlitedict import SqliteDict
-from typing import Tuple
-from image_dedup.convert import read_image, get_resized_image
+
+from image_dedup.convert import get_resized_image, read_image
 from image_dedup.disjointset import get_grouped_duplicates
 from image_dedup.phash import get_phash
-from multiprocessing import Pool
-from typing import List, Dict
-from sklearn.cluster import DBSCAN
 
 logger = logging.getLogger(__name__)
 
 PHASH_DB = "phash.db"
 PAGE_SIZE = 10
 
-def get_preview_and_phash(input_filename: str) -> Tuple[np.ndarray, str]:
-    img = read_image(input_filename)
+
+def get_preview_and_phash(p: str) -> Tuple[np.ndarray, str]:
+    img = read_image(p)
     if img is None:
         return (None, None)
     img = get_resized_image(img=img)
     return img, get_phash(img=img)
 
-def get_preview_and_phash_cached(input_filename: str) -> Tuple[np.ndarray, str]:
+
+def get_preview_and_phash_cached(p: str) -> Tuple[np.ndarray, str]:
     with SqliteDict(PHASH_DB) as db:
         if p not in db:
-            db[p] = get_preview_and_phash(input_filename=input_filename)
-            db.commit()
+            try:
+                db[p] = get_preview_and_phash(p=p)
+                db.commit()
+            except Exception as e:
+                return (None, None)
         return db[p]
 
-@st.cache_resource(show_spinner=True)
+
+# @st.cache_resource(show_spinner=True)
 def get_grouped_duplicates(input_files: List[str]) -> Dict[int, List[str]]:
-    with Pool(processes=4) as pool:
-        phashes = pool.map(get_preview_and_phash_cached, input_files)
-    vecs = [
-        [int(c, 16) for c in phash]
-        for phash in phashes
-    ]
-    clustering = DBSCAN(min_samples=2).fit(vecs)
-    grouped_duplicates = []
+    phashes = {}
+    for p in input_files:
+        _, phash = get_preview_and_phash_cached(p)
+        if phash is None:
+            continue
+        phashes[p] = [int(c, 16) for c in phash]
+
+    paths = list(phashes.keys())
+    vecs = np.array(list(phashes.values()))
+    # st.write(vecs.shape)
+    # st.write(pairwise_distances(X=vecs, metric='hamming'))
+
+    clustering = DBSCAN(eps=0.5, min_samples=2, metric="hamming").fit(vecs)
+    grouped_duplicates = {}
     for i, label in enumerate(clustering.labels_):
-        grouped_duplicates[label] = grouped_duplicates.get(label, []) + [input_files[i]]
+        if label > 0:
+            grouped_duplicates[label] = grouped_duplicates.get(label, []) + [paths[i]]
     return grouped_duplicates
 
 
@@ -64,6 +76,7 @@ def get_input_files(inputdir, ignorestrs):
     return input_files
 
 
+input_files = []
 with st.sidebar:
     st.title("Image Deduplication")
     inputdir = st.text_input(label="Input directory", value="/input").strip()
@@ -77,24 +90,6 @@ with st.sidebar:
     input_files = get_input_files(inputdir=inputdir, ignorestrs=ignorestrs)
     st.write(f"Found {len(input_files)} files.")
 
-    with st.spinner("Finding duplicates"):
-        grouped_duplicates = get_grouped_duplicates(input_files)
-        num_groups = len(grouped_duplicates)
-    st.write(f"Found {num_groups} grouped duplicates.")
-
-
-grouped_keys = list(grouped_duplicates.keys())
-grouped_keys_by_page = [
-    grouped_keys[page_num : min(num_groups, page_num + PAGE_SIZE)]
-    for page_num in range(0, num_groups, PAGE_SIZE)
-]
-num_pages = len(grouped_keys_by_page)
-
-with st.sidebar:
-    current_page = st.selectbox(
-        label=f"Current page (out of {num_pages})", options=list(range(num_pages))
-    )
-
 
 DEDUPLICATION_README = """
 # Deduplication
@@ -105,45 +100,66 @@ Uncheck the items you want to remove.
 """
 
 
-if len(grouped_duplicates) > 0:
-    st.markdown(DEDUPLICATION_README)
-    with st.form("select photos to remove for current page"):
-        original_files_to_remove = st.session_state.get("original_files_to_remove", [])
+if len(input_files) > 0:
+    with st.spinner("Finding duplicates"):
+        grouped_duplicates = get_grouped_duplicates(input_files)
+        num_groups = len(grouped_duplicates)
+    st.write(f"Found {num_groups} grouped duplicates.")
 
-        page_photo_checked = {}
-        for i, k in enumerate(grouped_keys_by_page[current_page]):
-            v = grouped_duplicates[k]
-            with st.expander(f"{k}: {len(v)} duplicates", expanded=True):
-                for p in grouped_duplicates[k]:
-                    page_photo_checked[p] = st.checkbox(
-                        label=f"File: {p} Size: {os.path.getsize(p) / (1024**2):.2f} Mb",
-                        value=p not in original_files_to_remove,
-                    )
-                    st.image(image=get_preview_and_phash_cached(p)[0], width=400)
+    grouped_keys = list(grouped_duplicates.keys())
+    grouped_keys_by_page = [
+        grouped_keys[page_num : min(num_groups, page_num + PAGE_SIZE)]
+        for page_num in range(0, num_groups, PAGE_SIZE)
+    ]
+    num_pages = len(grouped_keys_by_page)
 
-        if st.form_submit_button(label="Add to deletion list"):
-            for p, checked in page_photo_checked.items():
-                if not checked and p not in original_files_to_remove:
-                    original_files_to_remove.append(p)
-                elif p in original_files_to_remove:
-                    original_files_to_remove.remove(p)
-            st.session_state[
-                "original_files_to_remove"
-            ] = original_files_to_remove.copy()
-
-with st.sidebar:
-    original_files_to_remove = st.session_state.get("original_files_to_remove", [])
-    st.write(f"Will be removing {len(original_files_to_remove)} files.")
-    st.dataframe(pd.DataFrame({"to remove": original_files_to_remove}))
-    if st.button("Remove"):
-        with st.spinner("Removing..."):
-            progress_bar = st.progress(0.0)
-            for i, remove_p in enumerate(original_files_to_remove):
-                progress_bar.progress(i / len(original_files_to_remove))
-                os.remove(path=remove_p)
-            progress_bar.empty()
-        st.success(
-            f"Removed {len(original_files_to_remove)} files! Reload to continue."
+    with st.sidebar:
+        current_page = st.selectbox(
+            label=f"Current page (out of {num_pages})", options=list(range(num_pages))
         )
-        get_input_files.clear()
-        st.stop()
+
+    if len(grouped_duplicates) > 0:
+        st.markdown(DEDUPLICATION_README)
+        with st.form("select photos to remove for current page"):
+            original_files_to_remove = st.session_state.get(
+                "original_files_to_remove", []
+            )
+
+            page_photo_checked = {}
+            for i, k in enumerate(grouped_keys_by_page[current_page]):
+                v = grouped_duplicates[k]
+                with st.expander(f"{k}: {len(v)} duplicates", expanded=True):
+                    for p in grouped_duplicates[k]:
+                        page_photo_checked[p] = st.checkbox(
+                            label=f"File: {p} Size: {os.path.getsize(p) / (1024**2):.2f} Mb",
+                            value=p not in original_files_to_remove,
+                        )
+                        preview, phash = get_preview_and_phash_cached(p)
+                        st.image(image=preview, caption=phash, width=400)
+
+            if st.form_submit_button(label="Add to deletion list"):
+                for p, checked in page_photo_checked.items():
+                    if not checked and p not in original_files_to_remove:
+                        original_files_to_remove.append(p)
+                    elif p in original_files_to_remove:
+                        original_files_to_remove.remove(p)
+                st.session_state[
+                    "original_files_to_remove"
+                ] = original_files_to_remove.copy()
+
+    with st.sidebar:
+        original_files_to_remove = st.session_state.get("original_files_to_remove", [])
+        st.write(f"Will be removing {len(original_files_to_remove)} files.")
+        st.dataframe(pd.DataFrame({"to remove": original_files_to_remove}))
+        if st.button("Remove"):
+            with st.spinner("Removing..."):
+                progress_bar = st.progress(0.0)
+                for i, remove_p in enumerate(original_files_to_remove):
+                    progress_bar.progress(i / len(original_files_to_remove))
+                    os.remove(path=remove_p)
+                progress_bar.empty()
+            st.success(
+                f"Removed {len(original_files_to_remove)} files! Reload to continue."
+            )
+            get_input_files.clear()
+            st.stop()

@@ -1,10 +1,10 @@
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 
 import pyheif
 from PIL import Image
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -52,4 +52,4 @@ def get_resized_image(img: Image.Image, max_width = 400) -> Image.Image:
         return img
     else:
         scale = max_width / w
-        return img.resize(max_width, scale * h)
+        return img.resize(size=(max_width, int(scale * h)))
