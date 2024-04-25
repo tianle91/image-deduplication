@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.cluster import DBSCAN
-from sklearn.metrics import pairwise_distances
 from sqlitedict import SqliteDict
 
 from image_dedup.convert import get_resized_image, read_image
@@ -39,21 +38,25 @@ def get_preview_and_phash_cached(p: str) -> Tuple[np.ndarray, str]:
         return db[p]
 
 
-# @st.cache_resource(show_spinner=True)
+@st.cache_resource(show_spinner=True)
 def get_grouped_duplicates(input_files: List[str]) -> Dict[int, List[str]]:
+
+    # generate phash
     phashes = {}
-    for p in input_files:
+    progress_bar = st.progress(0.0, text='Analyzing images...')
+    for i, p in enumerate(input_files):
         _, phash = get_preview_and_phash_cached(p)
         if phash is None:
             continue
         phashes[p] = [int(c, 16) for c in phash]
+        progress_bar.progress(i / len(input_files))
+    progress_bar.empty()
 
+    # get grouped duplicates 
     paths = list(phashes.keys())
     vecs = np.array(list(phashes.values()))
-    # st.write(vecs.shape)
-    # st.write(pairwise_distances(X=vecs, metric='hamming'))
-
-    clustering = DBSCAN(eps=0.5, min_samples=2, metric="hamming").fit(vecs)
+    with st.spinner(text='Finding duplicates...'):
+        clustering = DBSCAN(eps=0.5, min_samples=2, metric="hamming").fit(vecs)
     grouped_duplicates = {}
     for i, label in enumerate(clustering.labels_):
         if label > 0:
@@ -83,7 +86,7 @@ with st.sidebar:
     ignorestrs = st.text_input(
         label="Ignore strings",
         value="@eaDir,",
-        help="Separate strings with comman: `,`",
+        help="Separate strings with comma: `,`",
     )
     ignorestrs = [s.strip() for s in ignorestrs.split(",")]
     ignorestrs = [s for s in ignorestrs if len(s) > 0]
