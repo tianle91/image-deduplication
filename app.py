@@ -31,7 +31,7 @@ def get_phash_and_analyzed_status(p: str) -> Optional[Tuple[str, bool]]:
         return db[p]
 
 
-@st.cache_resource(show_spinner=True)
+@st.cache_resource(show_spinner=False)
 def get_input_files(inputdir, ignorestrs):
     p = os.path.join(inputdir, "**", "*")
     with st.spinner(
@@ -46,8 +46,10 @@ def get_input_files(inputdir, ignorestrs):
     return input_files
 
 
-@st.cache_resource(show_spinner=True)
-def get_grouped_duplicates(input_files: List[str]) -> Dict[int, List[str]]:
+@st.cache_resource(show_spinner=False)
+def get_grouped_duplicates(
+    input_files: List[str], eps: float = 0.5
+) -> Dict[int, List[str]]:
     # get phashes for not yet analyzed files
     phashes = {}
     progress_bar = st.progress(0.0, text="Analyzing images...")
@@ -64,7 +66,7 @@ def get_grouped_duplicates(input_files: List[str]) -> Dict[int, List[str]]:
     paths = list(phashes.keys())
     vecs = np.array(list(phashes.values()))
     with st.spinner(text="Finding duplicates..."):
-        clustering = DBSCAN(eps=0.5, min_samples=2, metric="hamming").fit(vecs)
+        clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming").fit(vecs)
     grouped_duplicates = {}
     for i, label in enumerate(clustering.labels_):
         if label > 0:
@@ -92,6 +94,14 @@ with st.sidebar:
     input_files = get_input_files(inputdir=inputdir, ignorestrs=ignorestrs)
     st.write(f"Found {len(input_files)} files.")
 
+    eps = st.slider(
+        label="tolerance",
+        min_value=0.1,
+        max_value=0.9,
+        value=0.5,
+        help="increase tolerance to find more duplicates",
+    )
+
 
 DEDUPLICATION_README = """
 # Deduplication
@@ -104,7 +114,7 @@ Uncheck the items you want to remove.
 
 if len(input_files) > 0:
     with st.spinner("Finding duplicates"):
-        grouped_duplicates = get_grouped_duplicates(input_files)
+        grouped_duplicates = get_grouped_duplicates(input_files=input_files, eps=eps)
         # reversed mapping of grouped_duplicates
         p_to_group = {}
         for group_dex, paths in grouped_duplicates.items():
@@ -149,8 +159,10 @@ if len(input_files) > 0:
                     for p in grouped_duplicates[k]:
                         size_in_mb = os.path.getsize(p) / (1024**2)
                         page_photo_checked[p] = st.checkbox(
-                            label=f"{size_in_mb:.2f} Mb",
+                            label=f"Size: {size_in_mb:.2f} Mb",
                             value=p not in original_files_to_remove,
+                            key=p,
+                            help="Uncheck to delete",
                         )
                         preview = get_resized_image(img=read_image(p))
                         st.image(image=preview, caption=p, width=400)
