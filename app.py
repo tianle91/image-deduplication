@@ -1,11 +1,14 @@
 import logging
+import multiprocessing
 import os
+import time
 from glob import glob
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+from PIL import Image
 from sklearn.cluster import DBSCAN
 from sqlitedict import SqliteDict
 
@@ -19,52 +22,19 @@ PHASH_DB = "phash.db"
 PAGE_SIZE = 10
 
 
-def get_preview_and_phash(p: str) -> Tuple[np.ndarray, str]:
-    img = read_image(p)
-    if img is None:
-        return (None, None)
-    img = get_resized_image(img=img)
-    return img, get_phash(img=img)
-
-
-def get_preview_and_phash_cached(p: str) -> Tuple[np.ndarray, str]:
+def get_phash_and_analyzed_status(p: str) -> Optional[Tuple[str, bool]]:
     with SqliteDict(PHASH_DB) as db:
         if p not in db:
             try:
-                db[p] = get_preview_and_phash(p=p)
+                phash = get_phash(img=read_image(p))
+                db[p] = (phash, False)
                 db.commit()
             except Exception as e:
-                return (None, None)
+                return None
         return db[p]
 
 
-@st.cache_resource(show_spinner=True)
-def get_grouped_duplicates(input_files: List[str]) -> Dict[int, List[str]]:
-
-    # generate phash
-    phashes = {}
-    progress_bar = st.progress(0.0, text='Analyzing images...')
-    for i, p in enumerate(input_files):
-        _, phash = get_preview_and_phash_cached(p)
-        if phash is None:
-            continue
-        phashes[p] = [int(c, 16) for c in phash]
-        progress_bar.progress(i / len(input_files))
-    progress_bar.empty()
-
-    # get grouped duplicates 
-    paths = list(phashes.keys())
-    vecs = np.array(list(phashes.values()))
-    with st.spinner(text='Finding duplicates...'):
-        clustering = DBSCAN(eps=0.5, min_samples=2, metric="hamming").fit(vecs)
-    grouped_duplicates = {}
-    for i, label in enumerate(clustering.labels_):
-        if label > 0:
-            grouped_duplicates[label] = grouped_duplicates.get(label, []) + [paths[i]]
-    return grouped_duplicates
-
-
-@st.cache_resource(show_spinner=True)
+@st.cache_resource(show_spinner=False)
 def get_input_files(inputdir, ignorestrs):
     p = os.path.join(inputdir, "**", "*")
     with st.spinner(
@@ -77,6 +47,47 @@ def get_input_files(inputdir, ignorestrs):
             if all([ignorestr not in s for ignorestr in ignorestrs])
         ]
     return input_files
+
+
+@st.cache_resource(show_spinner=False)
+def get_grouped_duplicates(
+    input_files: List[str], eps: float = 0.5
+) -> Dict[int, List[str]]:
+    with st.spinner("Analyzing files..."):
+        time_start = time.time()
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            res_l = pool.map(get_phash_and_analyzed_status, input_files)
+        phashes = {}
+        for p, res in zip(input_files, res_l):
+            if res is None:
+                continue
+            phash, is_analyzed = res
+            if not is_analyzed:
+                phashes[p] = [int(c, 16) for c in phash]
+        analysis_time = time.time() - time_start
+        logger.warning(f"Analysis took {analysis_time}")
+
+    with st.spinner("Finding duplicates..."):
+        time_start = time.time()
+        paths = list(phashes.keys())
+        vecs = np.array(list(phashes.values()))
+        clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming").fit(vecs)
+        grouped_duplicates = {}
+        for i, label in enumerate(clustering.labels_):
+            if label > 0:
+                grouped_duplicates[label] = grouped_duplicates.get(label, []) + [
+                    paths[i]
+                ]
+        find_duplicates_time = time.time() - time_start
+        logger.warning(f"Finding duplicates took {find_duplicates_time}")
+
+    return grouped_duplicates
+
+
+def clean_up_and_stop_app():
+    get_input_files.clear()
+    get_grouped_duplicates.clear()
+    st.stop()
 
 
 input_files = []
@@ -93,6 +104,14 @@ with st.sidebar:
     input_files = get_input_files(inputdir=inputdir, ignorestrs=ignorestrs)
     st.write(f"Found {len(input_files)} files.")
 
+    eps = st.slider(
+        label="tolerance",
+        min_value=0.1,
+        max_value=0.9,
+        value=0.5,
+        help="increase tolerance to find more duplicates",
+    )
+
 
 DEDUPLICATION_README = """
 # Deduplication
@@ -103,25 +122,39 @@ Uncheck the items you want to remove.
 """
 
 
-if len(input_files) > 0:
-    with st.spinner("Finding duplicates"):
-        grouped_duplicates = get_grouped_duplicates(input_files)
-        num_groups = len(grouped_duplicates)
-    st.write(f"Found {num_groups} grouped duplicates.")
+@st.cache_resource(max_entries=1000)
+def get_preview(p: str) -> Image.Image:
+    return get_resized_image(img=read_image(p), max_length=200)
 
-    grouped_keys = list(grouped_duplicates.keys())
-    grouped_keys_by_page = [
-        grouped_keys[page_num : min(num_groups, page_num + PAGE_SIZE)]
-        for page_num in range(0, num_groups, PAGE_SIZE)
-    ]
-    num_pages = len(grouped_keys_by_page)
+
+if len(input_files) > 0:
+    grouped_duplicates = get_grouped_duplicates(input_files=input_files, eps=eps)
+    num_groups = len(grouped_duplicates)
 
     with st.sidebar:
-        current_page = st.selectbox(
-            label=f"Current page (out of {num_pages})", options=list(range(num_pages))
-        )
+        st.write(f"Found {num_groups} grouped duplicates.")
+        if len(grouped_duplicates) == 0:
+            st.warning(
+                "Expected to find duplicates? Try clearing cache and reload page."
+            )
+        if st.button("Clear cache"):
+            os.remove(path=PHASH_DB)
+            clean_up_and_stop_app()
 
     if len(grouped_duplicates) > 0:
+        grouped_keys = list(grouped_duplicates.keys())
+        grouped_keys_by_page = [
+            grouped_keys[page_num : min(num_groups, page_num + PAGE_SIZE)]
+            for page_num in range(0, num_groups, PAGE_SIZE)
+        ]
+        num_pages = len(grouped_keys_by_page)
+
+        with st.sidebar:
+            current_page = st.selectbox(
+                label=f"Current page (out of {num_pages})",
+                options=list(range(num_pages)),
+            )
+
         st.markdown(DEDUPLICATION_README)
         with st.form("select photos to remove for current page"):
             original_files_to_remove = st.session_state.get(
@@ -133,12 +166,14 @@ if len(input_files) > 0:
                 v = grouped_duplicates[k]
                 with st.expander(f"{k}: {len(v)} duplicates", expanded=True):
                     for p in grouped_duplicates[k]:
+                        size_in_mb = os.path.getsize(p) / (1024**2)
                         page_photo_checked[p] = st.checkbox(
-                            label=f"File: {p} Size: {os.path.getsize(p) / (1024**2):.2f} Mb",
+                            label=f"Size: {size_in_mb:.2f} Mb",
                             value=p not in original_files_to_remove,
+                            key=p,
+                            help="Uncheck to delete",
                         )
-                        preview, phash = get_preview_and_phash_cached(p)
-                        st.image(image=preview, caption=phash, width=400)
+                        st.image(image=get_preview(p), caption=p, width=400)
 
             if st.form_submit_button(label="Add to deletion list"):
                 for p, checked in page_photo_checked.items():
@@ -150,19 +185,34 @@ if len(input_files) > 0:
                     "original_files_to_remove"
                 ] = original_files_to_remove.copy()
 
+    # construct reversed mapping of grouped_duplicates so we can update analyzed status
+    p_to_group = {}
+    for group_dex, paths in grouped_duplicates.items():
+        for p in paths:
+            p_to_group[p] = group_dex
+
     with st.sidebar:
         original_files_to_remove = st.session_state.get("original_files_to_remove", [])
         st.write(f"Will be removing {len(original_files_to_remove)} files.")
-        st.dataframe(pd.DataFrame({"to remove": original_files_to_remove}))
         if st.button("Remove"):
             with st.spinner("Removing..."):
+                groups_to_update_status = []
                 progress_bar = st.progress(0.0)
                 for i, remove_p in enumerate(original_files_to_remove):
                     progress_bar.progress(i / len(original_files_to_remove))
                     os.remove(path=remove_p)
+                    groups_to_update_status.append(p_to_group[remove_p])
+
+                # update groups with removed files as analyzed
+                with SqliteDict(PHASH_DB) as db:
+                    for group_dex in set(groups_to_update_status):
+                        for p in grouped_duplicates[group_dex]:
+                            phash, is_analyzed = db[p]
+                            db[p] = (phash, True)
+                            db.commit()
+
                 progress_bar.empty()
             st.success(
                 f"Removed {len(original_files_to_remove)} files! Reload to continue."
             )
-            get_input_files.clear()
-            st.stop()
+            clean_up_and_stop_app()()
