@@ -46,10 +46,16 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
             logger.warning(f"Ignoring {input_filename} because it cannot be opened.")
 
 
-def get_resized_image(img: Image.Image, max_width = 400) -> Image.Image:
+def get_resized_image(img: Image.Image, max_length = 400) -> Image.Image:
     w, h = img.size
-    if w < max_width:
+    max_w_h = max(w, h)
+    if max_w_h < max_length:
         return img
+    elif w == max_w_h:
+        # shrink w to max_length
+        scale = max_length / w
+        return img.resize(size=(max_length, int(scale * h)))
     else:
-        scale = max_width / w
-        return img.resize(size=(max_width, int(scale * h)))
+        # shrink h to max_length
+        scale = max_length / h
+        return img.resize(size=(int(scale * w), max_length))

@@ -124,7 +124,7 @@ Uncheck the items you want to remove.
 
 @st.cache_resource(max_entries=1000)
 def get_preview(p: str) -> Image.Image:
-    return get_resized_image(img=read_image(p), max_width=200)
+    return get_resized_image(img=read_image(p), max_length=200)
 
 
 if len(input_files) > 0:
@@ -194,7 +194,6 @@ if len(input_files) > 0:
     with st.sidebar:
         original_files_to_remove = st.session_state.get("original_files_to_remove", [])
         st.write(f"Will be removing {len(original_files_to_remove)} files.")
-        st.dataframe(pd.DataFrame({"to remove": original_files_to_remove}))
         if st.button("Remove"):
             with st.spinner("Removing..."):
                 groups_to_update_status = []
