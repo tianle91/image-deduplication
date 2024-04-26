@@ -7,7 +7,7 @@ services:
     ports:
       - 8501:8501
     volumes:
-      - "/storage/syncthing:/input"
+      - "/storage/syncthing/L2_good_to_have/Unsafe/Gallery/Photos/model/Byoru:/input"
     deploy:
       restart_policy:
         condition: on-failure

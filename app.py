@@ -1,11 +1,14 @@
 import logging
+import multiprocessing
 import os
+import time
 from glob import glob
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+from PIL import Image
 from sklearn.cluster import DBSCAN
 from sqlitedict import SqliteDict
 
@@ -50,27 +53,34 @@ def get_input_files(inputdir, ignorestrs):
 def get_grouped_duplicates(
     input_files: List[str], eps: float = 0.5
 ) -> Dict[int, List[str]]:
-    # get phashes for not yet analyzed files
-    phashes = {}
-    progress_bar = st.progress(0.0, text="Analyzing images...")
-    for i, p in enumerate(input_files):
-        res = get_phash_and_analyzed_status(p)
-        if res is not None:
+    with st.spinner("Analyzing files..."):
+        time_start = time.time()
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            res_l = pool.map(get_phash_and_analyzed_status, input_files)
+        phashes = {}
+        for p, res in zip(input_files, res_l):
+            if res is None:
+                continue
             phash, is_analyzed = res
             if not is_analyzed:
                 phashes[p] = [int(c, 16) for c in phash]
-        progress_bar.progress(i / len(input_files))
-    progress_bar.empty()
+        analysis_time = time.time() - time_start
+        logger.warning(f"Analysis took {analysis_time}")
 
-    # get grouped duplicates
-    paths = list(phashes.keys())
-    vecs = np.array(list(phashes.values()))
-    with st.spinner(text="Finding duplicates..."):
+    with st.spinner("Finding duplicates..."):
+        time_start = time.time()
+        paths = list(phashes.keys())
+        vecs = np.array(list(phashes.values()))
         clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming").fit(vecs)
-    grouped_duplicates = {}
-    for i, label in enumerate(clustering.labels_):
-        if label > 0:
-            grouped_duplicates[label] = grouped_duplicates.get(label, []) + [paths[i]]
+        grouped_duplicates = {}
+        for i, label in enumerate(clustering.labels_):
+            if label > 0:
+                grouped_duplicates[label] = grouped_duplicates.get(label, []) + [
+                    paths[i]
+                ]
+        find_duplicates_time = time.time() - time_start
+        logger.warning(f"Finding duplicates took {find_duplicates_time}")
+
     return grouped_duplicates
 
 
@@ -112,15 +122,14 @@ Uncheck the items you want to remove.
 """
 
 
+@st.cache_resource(max_entries=1000)
+def get_preview(p: str) -> Image.Image:
+    return get_resized_image(img=read_image(p), max_width=200)
+
+
 if len(input_files) > 0:
-    with st.spinner("Finding duplicates"):
-        grouped_duplicates = get_grouped_duplicates(input_files=input_files, eps=eps)
-        # reversed mapping of grouped_duplicates
-        p_to_group = {}
-        for group_dex, paths in grouped_duplicates.items():
-            for p in paths:
-                p_to_group[p] = group_dex
-        num_groups = len(grouped_duplicates)
+    grouped_duplicates = get_grouped_duplicates(input_files=input_files, eps=eps)
+    num_groups = len(grouped_duplicates)
 
     with st.sidebar:
         st.write(f"Found {num_groups} grouped duplicates.")
@@ -164,8 +173,7 @@ if len(input_files) > 0:
                             key=p,
                             help="Uncheck to delete",
                         )
-                        preview = get_resized_image(img=read_image(p))
-                        st.image(image=preview, caption=p, width=400)
+                        st.image(image=get_preview(p), caption=p, width=400)
 
             if st.form_submit_button(label="Add to deletion list"):
                 for p, checked in page_photo_checked.items():
@@ -176,6 +184,12 @@ if len(input_files) > 0:
                 st.session_state[
                     "original_files_to_remove"
                 ] = original_files_to_remove.copy()
+
+    # construct reversed mapping of grouped_duplicates so we can update analyzed status
+    p_to_group = {}
+    for group_dex, paths in grouped_duplicates.items():
+        for p in paths:
+            p_to_group[p] = group_dex
 
     with st.sidebar:
         original_files_to_remove = st.session_state.get("original_files_to_remove", [])
