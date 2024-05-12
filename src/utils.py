@@ -45,6 +45,7 @@ def update_cache_with_phashes(paths: List[str]):
                 scheduler.add_job(
                     func=update_cache_with_phash,
                     kwargs={"path": p},
+                    misfire_grace_time=300,
                 )
 
 
@@ -59,6 +60,7 @@ def get_grouped_duplicates(paths: List[str], eps: float = 0.5) -> List[List[str]
         phashes_vec = {
             p: [int(c, 16) for c in phash]
             for p, phash in get_available_phashes(paths=paths).items()
+            if phash is not None
         }
         analysis_time = time.time() - time_start
         msg = f"Retrieving analysis took {analysis_time}. "

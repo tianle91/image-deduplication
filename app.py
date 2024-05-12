@@ -30,14 +30,17 @@ def get_paths_and_update_cache():
         paths = get_input_paths()
         update_cache_with_phashes(paths=paths)
     time_end = time.time()
-    print(f"Scanned {len(paths)} files in {time_end - time_start:.2f} seconds.")
-    return paths
+    time_taken = time_end - time_start
+    print(f"Scanned {len(paths)} files in {time_taken:.2f} seconds.")
+    return paths, time_taken
 
 
-input_paths = get_paths_and_update_cache()
+input_paths, input_paths_time_taken = get_paths_and_update_cache()
 
 with st.sidebar:
-    st.write(f"Found {len(input_paths)} files in {INPUT_ROOT_DIR}.")
+    st.write(
+        f"Took {input_paths_time_taken:.2f} seconds to find {len(input_paths)} files in {INPUT_ROOT_DIR}."
+    )
     eps = st.slider(
         label="tolerance",
         min_value=0.1,
@@ -90,8 +93,8 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
 
 if len(input_paths) > 0:
     grouped_duplicates = st.cache_resource(
-        get_grouped_duplicates, ttl=300, max_entries=1
-    )(eps=eps)
+        get_grouped_duplicates, ttl=300, show_spinner=False
+    )(paths=input_paths, eps=eps)
     with st.sidebar:
         st.write(f"Found {len(grouped_duplicates)} grouped duplicates.")
         if len(grouped_duplicates) == 0:
