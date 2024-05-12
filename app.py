@@ -1,90 +1,19 @@
 import logging
-import multiprocessing
 import os
-import time
-from glob import glob
-from typing import Dict, List, Optional, Tuple
+from typing import List
 
-import numpy as np
 import streamlit as st
 from PIL import Image
-from sklearn.cluster import DBSCAN
-from sqlitedict import SqliteDict
 
 from image_dedup.convert import get_resized_image, read_image
-from image_dedup.phash import get_phash
+from src.utils import (
+    PHASH_DB,
+    clean_up_and_stop_app,
+    get_grouped_duplicates,
+    get_input_files,
+)
 
 logger = logging.getLogger(__name__)
-
-PHASH_DB = "phash.db"
-PAGE_SIZE = 10
-
-
-def get_phash_and_analyzed_status(p: str) -> Optional[Tuple[str, bool]]:
-    with SqliteDict(PHASH_DB) as db:
-        if p not in db:
-            try:
-                phash = get_phash(img=read_image(p))
-                db[p] = (phash, False)
-                db.commit()
-            except Exception as e:
-                return None
-        return db[p]
-
-
-def get_input_files(inputdir, ignorestrs):
-    p = os.path.join(inputdir, "**", "*")
-    with st.spinner(
-        f'Finding files in `{p}` ignoring paths with {", ".join(ignorestrs)}...'
-    ):
-        input_files = sorted(glob(p, recursive=True))
-        input_files = [
-            s
-            for s in input_files
-            if all([ignorestr not in s for ignorestr in ignorestrs])
-        ]
-    return input_files
-
-
-@st.cache_resource(show_spinner=False)
-def get_grouped_duplicates(input_files: List[str], eps: float = 0.5) -> List[List[str]]:
-    with st.spinner("Analyzing files..."):
-        time_start = time.time()
-        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-            res_l = pool.map(get_phash_and_analyzed_status, input_files)
-        phashes = {}
-        for p, res in zip(input_files, res_l):
-            if res is None:
-                continue
-            phash, is_analyzed = res
-            if not is_analyzed:
-                phashes[p] = [int(c, 16) for c in phash]
-        analysis_time = time.time() - time_start
-        logger.warning(f"Analysis took {analysis_time}")
-
-    with st.spinner("Finding duplicates..."):
-        time_start = time.time()
-        paths = list(phashes.keys())
-        vecs = np.array(list(phashes.values()))
-        clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming").fit(vecs)
-        grouped_duplicates = {}
-        for i, label in enumerate(clustering.labels_):
-            if label > 0:
-                grouped_duplicates[label] = grouped_duplicates.get(label, []) + [
-                    paths[i]
-                ]
-        find_duplicates_time = time.time() - time_start
-        logger.warning(f"Finding duplicates took {find_duplicates_time}")
-
-    return [
-        sorted(paths, key=lambda s: len(s)) for paths in grouped_duplicates.values()
-    ]
-
-
-def clean_up_and_stop_app():
-    st.session_state["current_duplication_group"] = 0
-    get_grouped_duplicates.clear()
-    st.rerun()
 
 
 input_files = []
@@ -193,32 +122,15 @@ if len(input_files) > 0:
             paths=grouped_duplicates[current_duplication_group]
         )
 
-    # construct reversed mapping of grouped_duplicates so we can update analyzed status
-    p_to_group = {}
-    for group_dex, paths in enumerate(grouped_duplicates):
-        for p in paths:
-            p_to_group[p] = group_dex
-
     with st.sidebar:
         original_files_to_remove = st.session_state.get("original_files_to_remove", [])
         st.warning(f"Will be removing {len(original_files_to_remove)} files.")
         if st.button("Remove", disabled=len(original_files_to_remove) == 0):
             with st.spinner("Removing..."):
-                groups_to_update_status = []
                 progress_bar = st.progress(0.0)
                 for i, remove_p in enumerate(original_files_to_remove):
                     progress_bar.progress(i / len(original_files_to_remove))
                     os.remove(path=remove_p)
-                    groups_to_update_status.append(p_to_group[remove_p])
-
-                # update groups with removed files as analyzed
-                with SqliteDict(PHASH_DB) as db:
-                    for group_dex in set(groups_to_update_status):
-                        for p in grouped_duplicates[group_dex]:
-                            phash, is_analyzed = db[p]
-                            db[p] = (phash, True)
-                            db.commit()
-
                 progress_bar.empty()
             st.success(
                 f"Removed {len(original_files_to_remove)} files! Reload to continue."
