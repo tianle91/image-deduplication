@@ -3,10 +3,12 @@ import os
 from pathlib import Path
 from typing import Optional
 
+import cv2 as cv
 import pyheif
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
 
 def read_heic_image(input_filename: str) -> Image.Image:
     heif_file = pyheif.read(input_filename)
@@ -21,6 +23,15 @@ def read_heic_image(input_filename: str) -> Image.Image:
     return image
 
 
+def extract_mid_video_frame(input_filename: str) -> Image.Image:
+    cap = cv.VideoCapture(input_filename)
+    _, image = cap.read()
+    image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+    output = Image.fromarray(image_rgb)
+    cap.release()
+    return output
+
+
 def read_image(input_filename: str) -> Optional[Image.Image]:
     filename = Path(input_filename).name
     if not os.path.isfile(path=input_filename):
@@ -32,21 +43,28 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
         return None
 
     filename_extension = filename.split(".")[1].lower()
-    if filename_extension in ("mov", "mp4"):
-        logger.info(f"Ignoring {input_filename} because it is a video.")
-        return None
-    # maybe it's an image at this point
-    if filename_extension == "heic":
-        return read_heic_image(input_filename=input_filename)
+    if filename_extension in ("mov", "mp4", "mkv", "avi"):
+        try:
+            image = extract_mid_video_frame(input_filename=input_filename)
+            return image
+        except Exception as e:
+            logger.warning(
+                f"Failed to open video with cv2: {input_filename} with error {e}"
+            )
     else:
+        # Try to open image with pillow
+        if filename_extension == "heic":
+            return read_heic_image(input_filename=input_filename)
         try:
             image = Image.open(input_filename)
             return image
-        except Exception:
-            logger.warning(f"Ignoring {input_filename} because it cannot be opened.")
+        except Exception as e:
+            logger.warning(
+                f"Failed to open image with pillow: {input_filename} with error {e}"
+            )
 
 
-def get_resized_image(img: Image.Image, max_length = 400) -> Image.Image:
+def get_resized_image(img: Image.Image, max_length=400) -> Image.Image:
     w, h = img.size
     max_w_h = max(w, h)
     if max_w_h < max_length:
