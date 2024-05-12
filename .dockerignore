@@ -2,5 +2,5 @@
 .git
 __pycache__
 
+sampledir
 *.db
-test_images

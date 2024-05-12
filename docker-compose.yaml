@@ -8,6 +8,7 @@ services:
       - 8501:8501
     volumes:
       - "/storage/syncthing/L2_good_to_have/:/input"
+      - "./cache:/cache"
     deploy:
       restart_policy:
         condition: on-failure

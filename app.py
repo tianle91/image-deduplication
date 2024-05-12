@@ -7,29 +7,18 @@ from PIL import Image
 
 from image_dedup.convert import get_resized_image, read_image
 from src.utils import (
+    INPUT_PATHS,
+    INPUT_ROOT_DIR,
     PHASH_DB,
     clean_up_and_stop_app,
     get_grouped_duplicates,
-    get_input_files,
 )
 
 logger = logging.getLogger(__name__)
 
 
-input_files = []
 with st.sidebar:
-    st.title("Image Deduplication")
-    inputdir = st.text_input(label="Input directory", value="/input").strip()
-    ignorestrs = st.text_input(
-        label="Ignore strings",
-        value="@eaDir,",
-        help="Separate strings with comma: `,`",
-    )
-    ignorestrs = [s.strip() for s in ignorestrs.split(",")]
-    ignorestrs = [s for s in ignorestrs if len(s) > 0]
-    input_files = get_input_files(inputdir=inputdir, ignorestrs=ignorestrs)
-    st.write(f"Found {len(input_files)} files.")
-
+    st.write(f"Found {len(INPUT_PATHS)} files in {INPUT_ROOT_DIR}.")
     eps = st.slider(
         label="tolerance",
         min_value=0.1,
@@ -80,8 +69,8 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
                 st.success("Done! See sidebar for removal confirmation.")
 
 
-if len(input_files) > 0:
-    grouped_duplicates = get_grouped_duplicates(input_files=input_files, eps=eps)
+if len(INPUT_PATHS) > 0:
+    grouped_duplicates = get_grouped_duplicates(eps=eps)
     with st.sidebar:
         st.write(f"Found {len(grouped_duplicates)} grouped duplicates.")
         if len(grouped_duplicates) == 0:
