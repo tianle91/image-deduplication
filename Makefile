@@ -15,4 +15,8 @@ pre-commit: .venv
 
 .PHONY: test
 test: pre-commit
-	tox run
+	.venv/bin/python -m pytest tests
+
+.PHONY: run
+run:
+	.venv/bin/python -m streamlit run app.py

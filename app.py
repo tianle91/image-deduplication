@@ -6,14 +6,12 @@ from glob import glob
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 import streamlit as st
 from PIL import Image
 from sklearn.cluster import DBSCAN
 from sqlitedict import SqliteDict
 
 from image_dedup.convert import get_resized_image, read_image
-from image_dedup.disjointset import get_grouped_duplicates
 from image_dedup.phash import get_phash
 
 logger = logging.getLogger(__name__)
