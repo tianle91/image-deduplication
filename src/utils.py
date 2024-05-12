@@ -46,6 +46,7 @@ def update_cache_with_phashes(paths: List[str]):
                     func=update_cache_with_phash,
                     kwargs={"path": p},
                     misfire_grace_time=300,
+                    max_instances=1,
                 )
 
 
@@ -55,37 +56,38 @@ def get_available_phashes(paths: List[str]) -> Dict[str, str]:
 
 
 def get_grouped_duplicates(paths: List[str], eps: float = 0.5) -> List[List[str]]:
-    with st.spinner("Retrieving analysis results..."):
-        time_start = time.time()
-        phashes_vec = {
-            p: [int(c, 16) for c in phash]
-            for p, phash in get_available_phashes(paths=paths).items()
-            if phash is not None
-        }
-        analysis_time = time.time() - time_start
-        msg = f"Retrieving analysis took {analysis_time}. "
-        if len(phashes_vec) < len(paths):
-            msg += f"Missing {len(paths) - len(phashes_vec)} images. "
-        logger.warning(msg)
-
+    time_start = time.time()
+    phashes = get_available_phashes(paths=paths)
+    phashes_vec = {
+        p: [int(c, 16) for c in phash]
+        for p, phash in phashes.items()
+        if phash is not None
+    }
+    if len(phashes_vec) < len(paths):
+        logger.warning(f"Missing {len(paths) - len(phashes_vec)} images. ")
     if len(phashes_vec) == 0:
         logger.warning("No phashes found! Try again later.")
-        return []
-
-    with st.spinner("Finding duplicates..."):
-        time_start = time.time()
-        paths = list(phashes_vec.keys())
-        vecs = np.array(list(phashes_vec.values()))
-        clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming").fit(vecs)
+        return [], time.time() - time_start
+    else:
+        available_paths = list(phashes_vec.keys())
+        X = np.array(list(phashes_vec.values()))
+        clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming")
+        clustering.fit(X)
         grouped_duplicates = {}
         for i, label in enumerate(clustering.labels_):
             if label > 0:
-                grouped_duplicates[label] = grouped_duplicates.get(label, []) + [
-                    paths[i]
-                ]
-        find_duplicates_time = time.time() - time_start
-        logger.warning(f"Finding duplicates took {find_duplicates_time}")
+                existing_paths = grouped_duplicates.get(label, [])
+                existing_paths.append(available_paths[i])
+                grouped_duplicates[label] = existing_paths
 
-    return [
-        sorted(paths, key=lambda s: len(s)) for paths in grouped_duplicates.values()
-    ]
+        output = sorted(
+            # most duplicates first
+            [
+                # shorter path first
+                sorted(paths, key=lambda s: len(s))
+                for paths in grouped_duplicates.values()
+            ],
+            key=lambda s: len(s),
+            reverse=True,
+        )
+        return output, time.time() - time_start

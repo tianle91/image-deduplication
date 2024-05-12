@@ -18,11 +18,6 @@ from src.utils import (
 logger = logging.getLogger(__name__)
 
 
-def clean_up_and_stop_app():
-    st.session_state["current_duplication_group"] = 0
-    st.rerun()
-
-
 @st.cache_resource(ttl=3600, show_spinner=False)
 def get_paths_and_update_cache():
     time_start = time.time()
@@ -50,9 +45,15 @@ with st.sidebar:
     )
 
 
-@st.cache_resource(max_entries=1000)
+@st.cache_resource(max_entries=1000, show_spinner=False)
 def get_preview(p: str) -> Image.Image:
     return get_resized_image(img=read_image(p), max_length=200)
+
+
+def clean_up_and_stop_app():
+    st.session_state["current_duplication_group"] = 0
+    st.cache_resource.clear()
+    st.rerun()
 
 
 def show_duplication_results_and_add_to_deletion(paths: List[str]):
@@ -92,11 +93,13 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
 
 
 if len(input_paths) > 0:
-    grouped_duplicates = st.cache_resource(
+    grouped_duplicates, grouped_duplicates_time_taken = st.cache_resource(
         get_grouped_duplicates, ttl=300, show_spinner=False
     )(paths=input_paths, eps=eps)
     with st.sidebar:
-        st.write(f"Found {len(grouped_duplicates)} grouped duplicates.")
+        st.write(
+            f"Took {grouped_duplicates_time_taken:.2f} seconds to find {len(grouped_duplicates)} grouped duplicates."
+        )
         if len(grouped_duplicates) == 0:
             st.warning(
                 "Expected to find duplicates? Try clearing cache and reload page."
