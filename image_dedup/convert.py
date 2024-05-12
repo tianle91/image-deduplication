@@ -9,6 +9,9 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+VIDEO_EXTENSIONS = ["mov", "mp4", "mkv", "avi"]
+IMAGE_EXTENSIONS = ["heic", "jpg", "png", "webp", "gif", "jpeg"]
+
 
 def read_heic_image(input_filename: str) -> Image.Image:
     heif_file = pyheif.read(input_filename)
@@ -43,7 +46,7 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
         return None
 
     filename_extension = filename.split(".")[1].lower()
-    if filename_extension in ("mov", "mp4", "mkv", "avi"):
+    if filename_extension in VIDEO_EXTENSIONS:
         try:
             image = extract_mid_video_frame(input_filename=input_filename)
             return image
@@ -51,17 +54,18 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
             logger.warning(
                 f"Failed to open video with cv2: {input_filename} with error {e}"
             )
-    else:
-        # Try to open image with pillow
-        if filename_extension == "heic":
-            return read_heic_image(input_filename=input_filename)
+    elif filename_extension in IMAGE_EXTENSIONS:
         try:
-            image = Image.open(input_filename)
-            return image
+            if filename_extension == "heic":
+                return read_heic_image(input_filename=input_filename)
+            else:
+                return Image.open(input_filename)
         except Exception as e:
             logger.warning(
                 f"Failed to open image with pillow: {input_filename} with error {e}"
             )
+    else:
+        logger.warning(f"Ignoring {input_filename} with extension {filename_extension}")
 
 
 def get_resized_image(img: Image.Image, max_length=400) -> Image.Image:
