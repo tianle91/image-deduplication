@@ -22,7 +22,10 @@ CACHE_ROOT_DIR = os.getenv("CACHE_PATH", "/cache")
 PHASH_DB = os.path.join(CACHE_ROOT_DIR, "phash.db")
 
 INPUT_ROOT_DIR = os.getenv("INPUT_PATH", "/input")
-INPUT_PATHS = sorted(glob(os.path.join(INPUT_ROOT_DIR, "**", "*"), recursive=True))
+
+
+def get_input_paths() -> List[str]:
+    return sorted(glob(os.path.join(INPUT_ROOT_DIR, "**", "*"), recursive=True))
 
 
 def update_cache_with_phash(path: str):
@@ -35,13 +38,14 @@ def update_cache_with_phash(path: str):
             logger.warning(f"Failed to get phash for {path} with error {e}")
 
 
-with SqliteDict(PHASH_DB) as db:
-    for p in INPUT_PATHS:
-        if p not in db:
-            scheduler.add_job(
-                func=update_cache_with_phash,
-                kwargs={"path": p},
-            )
+def update_cache_with_phashes(paths: List[str]):
+    with SqliteDict(PHASH_DB) as db:
+        for p in paths:
+            if p not in db:
+                scheduler.add_job(
+                    func=update_cache_with_phash,
+                    kwargs={"path": p},
+                )
 
 
 def get_available_phashes(paths: List[str]) -> Dict[str, str]:
@@ -49,18 +53,22 @@ def get_available_phashes(paths: List[str]) -> Dict[str, str]:
         return {p: db[p] for p in paths if p in db}
 
 
-def get_grouped_duplicates(eps: float = 0.5) -> List[List[str]]:
+def get_grouped_duplicates(paths: List[str], eps: float = 0.5) -> List[List[str]]:
     with st.spinner("Retrieving analysis results..."):
         time_start = time.time()
         phashes_vec = {
             p: [int(c, 16) for c in phash]
-            for p, phash in get_available_phashes(paths=INPUT_PATHS).items()
+            for p, phash in get_available_phashes(paths=paths).items()
         }
         analysis_time = time.time() - time_start
-        info_message = f"Retrieving analysis took {analysis_time}. "
-        if len(phashes_vec) < len(INPUT_PATHS):
-            info_message += f"Missing {len(INPUT_PATHS) - len(phashes_vec)} images. "
-        logger.warning(info_message)
+        msg = f"Retrieving analysis took {analysis_time}. "
+        if len(phashes_vec) < len(paths):
+            msg += f"Missing {len(paths) - len(phashes_vec)} images. "
+        logger.warning(msg)
+
+    if len(phashes_vec) == 0:
+        logger.warning("No phashes found! Try again later.")
+        return []
 
     with st.spinner("Finding duplicates..."):
         time_start = time.time()
@@ -79,8 +87,3 @@ def get_grouped_duplicates(eps: float = 0.5) -> List[List[str]]:
     return [
         sorted(paths, key=lambda s: len(s)) for paths in grouped_duplicates.values()
     ]
-
-
-def clean_up_and_stop_app():
-    st.session_state["current_duplication_group"] = 0
-    st.rerun()

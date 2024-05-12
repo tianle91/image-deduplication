@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import List
 
 import streamlit as st
@@ -7,18 +8,36 @@ from PIL import Image
 
 from image_dedup.convert import get_resized_image, read_image
 from src.utils import (
-    INPUT_PATHS,
     INPUT_ROOT_DIR,
     PHASH_DB,
-    clean_up_and_stop_app,
     get_grouped_duplicates,
+    get_input_paths,
+    update_cache_with_phashes,
 )
 
 logger = logging.getLogger(__name__)
 
 
+def clean_up_and_stop_app():
+    st.session_state["current_duplication_group"] = 0
+    st.rerun()
+
+
+@st.cache_resource(ttl=3600, show_spinner=False)
+def get_paths_and_update_cache():
+    time_start = time.time()
+    with st.spinner(f"Scanning for files in {INPUT_ROOT_DIR}..."):
+        paths = get_input_paths()
+        update_cache_with_phashes(paths=paths)
+    time_end = time.time()
+    print(f"Scanned {len(paths)} files in {time_end - time_start:.2f} seconds.")
+    return paths
+
+
+input_paths = get_paths_and_update_cache()
+
 with st.sidebar:
-    st.write(f"Found {len(INPUT_PATHS)} files in {INPUT_ROOT_DIR}.")
+    st.write(f"Found {len(input_paths)} files in {INPUT_ROOT_DIR}.")
     eps = st.slider(
         label="tolerance",
         min_value=0.1,
@@ -69,8 +88,10 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
                 st.success("Done! See sidebar for removal confirmation.")
 
 
-if len(INPUT_PATHS) > 0:
-    grouped_duplicates = get_grouped_duplicates(eps=eps)
+if len(input_paths) > 0:
+    grouped_duplicates = st.cache_resource(
+        get_grouped_duplicates, ttl=300, max_entries=1
+    )(eps=eps)
     with st.sidebar:
         st.write(f"Found {len(grouped_duplicates)} grouped duplicates.")
         if len(grouped_duplicates) == 0:
@@ -124,4 +145,4 @@ if len(INPUT_PATHS) > 0:
             st.success(
                 f"Removed {len(original_files_to_remove)} files! Reload to continue."
             )
-            clean_up_and_stop_app()()
+            clean_up_and_stop_app()
