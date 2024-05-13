@@ -57,10 +57,15 @@ def clean_up_and_stop_app():
 
 
 def show_duplication_results_and_add_to_deletion(paths: List[str]):
+    # print summary summary of paths
+    folders = {os.path.dirname(p) for p in paths}
+    summary_text = f"Resolving {len(paths)} duplicates from {len(folders)} folders (uncheck to remove):\n"
+    for folder in folders:
+        summary_text += f"- {folder}\n"
+    st.markdown(summary_text)
+
     with st.form("Add to deletion list"):
         original_files_to_remove = st.session_state.get("original_files_to_remove", [])
-        st.markdown(f"Resolving {len(paths)} duplicates (uncheck to remove)")
-
         paths_to_should_delete_mapping = {}
         for p in paths:
             size_in_mb = os.path.getsize(p) / (1024**2)
