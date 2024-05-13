@@ -5,7 +5,6 @@ from glob import glob
 from typing import Dict, List
 
 import numpy as np
-import streamlit as st
 from apscheduler.schedulers.background import BackgroundScheduler
 from sklearn.cluster import DBSCAN
 from sqlitedict import SqliteDict
@@ -64,7 +63,7 @@ def get_grouped_duplicates(paths: List[str], eps: float = 0.5) -> List[List[str]
         if phash is not None
     }
     if len(phashes_vec) < len(paths):
-        logger.warning(f"Missing {len(paths) - len(phashes_vec)} images. ")
+        logger.warning(f"Missing {len(paths) - len(phashes_vec)} files. ")
     if len(phashes_vec) == 0:
         logger.warning("No phashes found! Try again later.")
         return [], time.time() - time_start
