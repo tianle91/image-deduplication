@@ -28,6 +28,13 @@ def read_heic_image(input_filename: str) -> Image.Image:
 
 def extract_mid_video_frame(input_filename: str) -> Image.Image:
     cap = cv.VideoCapture(input_filename)
+
+    # Get the total number of frames
+    length = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+    half_point = length // 2  # Approximately half if number of frames are odd
+    # Set the reader to the given frame number (half_point)
+    cap.set(cv.CAP_PROP_POS_FRAMES, half_point)
+
     _, image = cap.read()
     image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
     output = Image.fromarray(image_rgb)
