@@ -9,7 +9,6 @@ from PIL import Image
 from image_dedup.convert import get_resized_image, read_image
 from src.utils import (
     INPUT_ROOT_DIR,
-    PHASH_DB,
     get_grouped_duplicates,
     get_input_paths,
     update_cache_with_phashes,
@@ -59,7 +58,7 @@ def clean_up_and_stop_app():
 def show_duplication_results_and_add_to_deletion(paths: List[str]):
     MAX_FOLDERS_TO_SHOW = 5
     # print summary summary of paths
-    folders = {os.path.dirname(p) for p in paths}
+    folders = list({os.path.dirname(p) for p in paths})
     summary_text = f"Resolving {len(paths)} duplicates from {len(folders)} folders (uncheck to remove):\n"
     for folder in folders[:MAX_FOLDERS_TO_SHOW]:
         summary_text += f"- {folder}\n"
@@ -111,10 +110,9 @@ if len(input_paths) > 0:
         )
         if len(grouped_duplicates) == 0:
             st.warning(
-                "Expected to find duplicates? Try clearing cache and reload page."
+                "Expected to find duplicates? Come back later or try resetting the page."
             )
-        if st.button("Clear cache"):
-            os.remove(path=PHASH_DB)
+        if st.button("Reset"):
             clean_up_and_stop_app()
 
     if len(grouped_duplicates) > 0:
