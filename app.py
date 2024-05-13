@@ -38,10 +38,10 @@ with st.sidebar:
     )
     eps = st.slider(
         label="tolerance",
-        min_value=0.1,
+        min_value=0.0,
         max_value=0.9,
-        value=0.5,
-        help="increase tolerance to find more duplicates",
+        value=0.1,
+        help="select 0 for exact duplicates, increase to find more duplicates",
     )
 
 
@@ -57,11 +57,15 @@ def clean_up_and_stop_app():
 
 
 def show_duplication_results_and_add_to_deletion(paths: List[str]):
+    MAX_FOLDERS_TO_SHOW = 5
     # print summary summary of paths
     folders = {os.path.dirname(p) for p in paths}
     summary_text = f"Resolving {len(paths)} duplicates from {len(folders)} folders (uncheck to remove):\n"
-    for folder in folders:
+    for folder in folders[:MAX_FOLDERS_TO_SHOW]:
         summary_text += f"- {folder}\n"
+    if len(folders) > MAX_FOLDERS_TO_SHOW:
+        summary_text += f"- ... and {len(folders) - MAX_FOLDERS_TO_SHOW} more folders\n"
+        summary_text += f"Too many folders? Try decreasing tolerance (eps)."
     st.markdown(summary_text)
 
     with st.form("Add to deletion list"):
