@@ -45,7 +45,7 @@ def update_cache_with_phashes(paths: List[str]):
                 scheduler.add_job(
                     func=update_cache_with_phash,
                     kwargs={"path": p},
-                    misfire_grace_time=300,
+                    misfire_grace_time=None,
                     max_instances=1,
                 )
 
