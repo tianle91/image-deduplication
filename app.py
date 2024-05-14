@@ -108,6 +108,13 @@ if len(input_paths) > 0:
         st.write(
             f"Took {grouped_duplicates_time_taken:.2f} seconds to find {len(grouped_duplicates)} grouped duplicates."
         )
+        if st.checkbox("Ignore duplicates within the same folder"):
+            grouped_duplicates = list(
+                filter(
+                    lambda paths: len({os.path.dirname(p) for p in paths}) > 1,
+                    grouped_duplicates,
+                )
+            )
         if len(grouped_duplicates) == 0:
             st.warning(
                 "Expected to find duplicates? Come back later or try resetting the page."
