@@ -102,7 +102,7 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
 
 if len(input_paths) > 0:
     grouped_duplicates, grouped_duplicates_time_taken = st.cache_resource(
-        get_grouped_duplicates, ttl=300, show_spinner=False
+        get_grouped_duplicates, max_entries=1, show_spinner=False
     )(paths=input_paths, eps=eps)
     with st.sidebar:
         st.write(
