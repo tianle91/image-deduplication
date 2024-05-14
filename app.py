@@ -11,6 +11,7 @@ from src.utils import (
     INPUT_ROOT_DIR,
     get_grouped_duplicates,
     get_input_paths,
+    get_num_pending_jobs,
     update_cache_with_phashes,
 )
 
@@ -30,11 +31,16 @@ def get_paths_and_update_cache():
 
 
 input_paths, input_paths_time_taken = get_paths_and_update_cache()
+num_pending_jobs = get_num_pending_jobs()
 
 with st.sidebar:
     st.write(
         f"Took {input_paths_time_taken:.2f} seconds to find {len(input_paths)} files in {INPUT_ROOT_DIR}."
     )
+    if num_pending_jobs > 0:
+        st.write(
+            f"Pending analysis for {num_pending_jobs} ({100*num_pending_jobs/len(input_paths):.2f} pct) files."
+        )
     eps = st.slider(
         label="tolerance",
         min_value=0.0,
