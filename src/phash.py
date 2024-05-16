@@ -32,8 +32,10 @@ def update_phashes_in_db(paths: List[str], scheduler: BaseScheduler):
                 scheduler.add_job(
                     func=update_phash_in_db,
                     kwargs={"path": p},
+                    id=f"update_phash_in_db_{p}",
                     misfire_grace_time=None,
                     max_instances=1,
+                    replace_existing=True,
                 )
 
 
