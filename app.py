@@ -102,7 +102,7 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
     folders = list({os.path.dirname(p) for p in paths})
     summary_text = f"Resolving {len(paths)} duplicates from {len(folders)} folders (uncheck to remove):\n"
     for folder in folders[:MAX_FOLDERS_TO_SHOW]:
-        summary_text += f"- {folder}\n"
+        summary_text += f"- `{folder}`\n"
     if len(folders) > MAX_FOLDERS_TO_SHOW:
         summary_text += f"- ... and {len(folders) - MAX_FOLDERS_TO_SHOW} more folders\n"
         summary_text += f"Too many folders? Try decreasing tolerance (eps)."
