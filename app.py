@@ -90,10 +90,11 @@ with st.sidebar:
 
 ################ SHOW SINGLE DUPLICATE GROUP ################
 
+PREVIEW_MAX_WIDTH = 300
 
 @st.cache_resource(max_entries=1000)
 def get_preview(p: str) -> Image.Image:
-    return get_resized_image(img=read_image(p), max_length=200)
+    return get_resized_image(img=read_image(p), max_width=PREVIEW_MAX_WIDTH)
 
 
 def show_duplication_results_and_add_to_deletion(paths: List[str]):
@@ -119,7 +120,7 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
                 key=p,
                 help="Uncheck to delete",
             )
-            st.image(image=get_preview(p), caption=p, width=400)
+            st.image(image=get_preview(p), caption=p, width=PREVIEW_MAX_WIDTH)
 
         if st.form_submit_button(label="Add to deletion list"):
             # sync original_files_to_remove with paths_to_should_delete_mapping

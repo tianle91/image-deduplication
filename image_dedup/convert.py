@@ -75,16 +75,11 @@ def read_image(input_filename: str) -> Optional[Image.Image]:
         logger.warning(f"Ignoring {input_filename} with extension {filename_extension}")
 
 
-def get_resized_image(img: Image.Image, max_length=400) -> Image.Image:
+def get_resized_image(img: Image.Image, max_width=400) -> Image.Image:
     w, h = img.size
-    max_w_h = max(w, h)
-    if max_w_h < max_length:
+    if w < max_width:
         return img
-    elif w == max_w_h:
+    else: 
         # shrink w to max_length
-        scale = max_length / w
-        return img.resize(size=(max_length, int(scale * h)))
-    else:
-        # shrink h to max_length
-        scale = max_length / h
-        return img.resize(size=(int(scale * w), max_length))
+        scale = max_width / w
+        return img.resize(size=(max_width, int(scale * h)), resample=Image.NEAREST)
