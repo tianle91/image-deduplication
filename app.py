@@ -144,9 +144,14 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
 ################ SHOW ALL DUPLICATES ################
 
 
-@st.cache_resource(max_entries=1)
-def get_grouped_duplicates_cached(**kwargs) -> List[List[str]]:
-    return get_grouped_duplicates(**kwargs)
+# avoid hashing the entire dict of phases
+@st.cache_resource(
+    max_entries=1, hash_funcs={dict: lambda x: str(len(x)) + str(list(x.keys())[:5])}
+)
+def get_grouped_duplicates_cached(
+    phashes: Dict[str, str], eps: float
+) -> List[List[str]]:
+    return get_grouped_duplicates(phashes=phashes, eps=eps)
 
 
 if len(phashes) > 0:
