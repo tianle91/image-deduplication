@@ -56,7 +56,7 @@ def get_preview(p: str) -> Image.Image:
     return get_resized_image(img=read_image(p), max_length=200)
 
 
-def clean_up_and_stop_app():
+def rescan_files_and_reset_all():
     st.session_state["current_duplication_group"] = 0
     st.cache_resource.clear()
     os.remove(path=PHASH_DB)
@@ -108,10 +108,15 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
                 st.success("Done! See sidebar for removal confirmation.")
 
 
+@st.cache_resource(max_entries=1, show_spinner=False)
+def get_grouped_duplicates_cached(**kwargs):
+    return get_grouped_duplicates(**kwargs)
+
+
 if len(input_paths) > 0:
-    grouped_duplicates, grouped_duplicates_time_taken = st.cache_resource(
-        get_grouped_duplicates, max_entries=1, show_spinner=False
-    )(paths=input_paths, eps=eps)
+    grouped_duplicates, grouped_duplicates_time_taken = get_grouped_duplicates_cached(
+        paths=input_paths, eps=eps
+    )
     with st.sidebar:
         st.write(
             f"Took {grouped_duplicates_time_taken:.2f} seconds to find {len(grouped_duplicates)} grouped duplicates."
@@ -124,11 +129,20 @@ if len(input_paths) > 0:
                 )
             )
         if len(grouped_duplicates) == 0:
-            st.warning(
-                "Expected to find duplicates? Come back later or try resetting the page."
-            )
-        if st.button("Reset"):
-            clean_up_and_stop_app()
+            st.warning("Expected to find duplicates? Try refreshing analysis.")
+        l_col, r_col = st.columns(2)
+        with l_col:
+            if st.button(
+                "Refresh analysis",
+                help="Reloads analysis results which are running in the background.",
+            ):
+                get_grouped_duplicates_cached.clear()
+        with r_col:
+            if st.button(
+                "Rescan files",
+                help="Rescan files and clears all analysis results (this might take a while).",
+            ):
+                rescan_files_and_reset_all()
 
     if len(grouped_duplicates) > 0:
         current_duplication_group = st.session_state.get("current_duplication_group", 0)
@@ -173,4 +187,4 @@ if len(input_paths) > 0:
             st.success(
                 f"Removed {len(original_files_to_remove)} files! Reload to continue."
             )
-            clean_up_and_stop_app()
+            rescan_files_and_reset_all()
