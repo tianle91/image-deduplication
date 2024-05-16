@@ -1,7 +1,7 @@
-# python-template
-Template intended for development in a container specified by `dev.Dockerfile`.
-See configuration in `.devcontainer/devcontainer.json`.
+# Image-Deduplication
 
-Commands in `Makefile`:
-- `make .venv` creates a virtual environment in `.venv` folder.
-- `make test` runs tests.
+It's recommended to run `docker compose up` and navigate to the url shown.
+
+These two paths are important
+- `/input`: media here will be analyzed.
+- `/cache`: caches for analysis will be stored here.
