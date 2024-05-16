@@ -19,17 +19,19 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 scheduler.add_job(
     func=update_paths_in_db,
+    id="update_paths_in_db",
     trigger="interval",
     minutes=10,
     misfire_grace_time=None,
     max_instances=1,
+    replace_existing=True,
 )
 
 
 ################ GET INPUT PATHS ################
 
 
-@st.cache_resource(max_entries=1, show_spinner=False)
+@st.cache_resource(max_entries=1)
 def get_paths_from_db_cached() -> List[str]:
     paths = get_paths_from_db()
     update_phashes_in_db(paths=paths, scheduler=scheduler)
@@ -57,7 +59,7 @@ def rescan_files_and_reset_all():
     st.rerun()
 
 
-@st.cache_resource(max_entries=1, show_spinner=False)
+@st.cache_resource(max_entries=1)
 def get_phashes_from_db_cached(paths):
     return get_phashes_from_db(paths=paths)
 
@@ -88,7 +90,7 @@ with st.sidebar:
 ################ SHOW SINGLE DUPLICATE GROUP ################
 
 
-@st.cache_resource(max_entries=1000, show_spinner=False)
+@st.cache_resource(max_entries=1000)
 def get_preview(p: str) -> Image.Image:
     return get_resized_image(img=read_image(p), max_length=200)
 
@@ -141,14 +143,13 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
 ################ SHOW ALL DUPLICATES ################
 
 
-@st.cache_resource(max_entries=1, show_spinner=False)
+@st.cache_resource(max_entries=1)
 def get_grouped_duplicates_cached(**kwargs):
     return get_grouped_duplicates(**kwargs)
 
 
 if len(phashes) > 0:
-    with st.spinner("Finding duplicates..."):
-        grouped_duplicates = get_grouped_duplicates_cached(phashes=phashes, eps=eps)
+    grouped_duplicates = get_grouped_duplicates_cached(phashes=phashes, eps=eps)
     with st.sidebar:
         st.write(f"Found {len(grouped_duplicates)} grouped duplicates.")
         if st.checkbox("Ignore duplicates within the same folder"):
