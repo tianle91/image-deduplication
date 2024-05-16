@@ -35,7 +35,10 @@ def update_cache_with_phash(path: str):
     with SqliteDict(PHASH_DB) as db:
         try:
             img = read_image(input_filename=path)
-            db[path] = get_phash(img=img) if img is not None else None
+            db[path] = {
+                "mtime": os.path.getmtime(path),
+                "phash": get_phash(img=img) if img is not None else None,
+            }
             db.commit()
         except Exception as e:
             logger.warning(f"Failed to get phash for {path} with error {e}")
@@ -44,7 +47,7 @@ def update_cache_with_phash(path: str):
 def update_cache_with_phashes(paths: List[str]):
     with SqliteDict(PHASH_DB) as db:
         for p in paths:
-            if p not in db:
+            if p not in db or db[p]["mtime"] < os.path.getmtime(p):
                 scheduler.add_job(
                     func=update_cache_with_phash,
                     kwargs={"path": p},
@@ -55,7 +58,9 @@ def update_cache_with_phashes(paths: List[str]):
 
 def get_available_phashes(paths: List[str]) -> Dict[str, str]:
     with SqliteDict(PHASH_DB) as db:
-        return {p: db[p] for p in paths if p in db and db[p] is not None}
+        return {
+            p: db[p]["phash"] for p in paths if p in db and db[p]["phash"] is not None
+        }
 
 
 def get_grouped_duplicates(paths: List[str], eps: float = 0.5) -> List[List[str]]:

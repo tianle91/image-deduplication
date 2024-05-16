@@ -9,7 +9,6 @@ from PIL import Image
 from image_dedup.convert import get_resized_image, read_image
 from src.utils import (
     INPUT_ROOT_DIR,
-    PHASH_DB,
     get_grouped_duplicates,
     get_input_paths,
     get_num_pending_jobs,
@@ -59,7 +58,6 @@ def get_preview(p: str) -> Image.Image:
 def rescan_files_and_reset_all():
     st.session_state["current_duplication_group"] = 0
     st.cache_resource.clear()
-    os.remove(path=PHASH_DB)
     st.rerun()
 
 
