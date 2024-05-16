@@ -1,9 +1,8 @@
 import logging
-import multiprocessing
 import os
 import time
 from glob import glob
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -54,15 +53,9 @@ def update_cache_with_phashes(paths: List[str]):
                 )
 
 
-def get_phash_cached(path: str) -> Optional[str]:
-    with SqliteDict(PHASH_DB) as db:
-        return db.get(path, None)
-
-
 def get_available_phashes(paths: List[str]) -> Dict[str, str]:
-    with multiprocessing.Pool() as pool:
-        phashes = pool.map(get_phash_cached, paths)
-    return {p: phash for p, phash in zip(paths, phashes) if phash is not None}
+    with SqliteDict(PHASH_DB) as db:
+        return {p: db[p] for p in paths if p in db and db[p] is not None}
 
 
 def get_grouped_duplicates(paths: List[str], eps: float = 0.5) -> List[List[str]]:
