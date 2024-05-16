@@ -128,9 +128,9 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
                     original_files_to_remove.append(p)
                 elif p in original_files_to_remove:
                     original_files_to_remove.remove(p)
-            st.session_state[
-                "original_files_to_remove"
-            ] = original_files_to_remove.copy()
+            st.session_state["original_files_to_remove"] = (
+                original_files_to_remove.copy()
+            )
             # advance current_duplication_group if possible
             if not (current_duplication_group + 1 > len(grouped_duplicates) - 1):
                 st.session_state["current_duplication_group"] = (
