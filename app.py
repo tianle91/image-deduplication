@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List
+from typing import Dict, List
 
 import streamlit as st
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -59,8 +59,9 @@ def rescan_files_and_reset_all():
     st.rerun()
 
 
-@st.cache_resource(max_entries=1)
-def get_phashes_from_db_cached(paths):
+# avoid hashing the entire list of paths
+@st.cache_resource(max_entries=1, hash_funcs={list: lambda x: str(len(x)) + str(x[:5])})
+def get_phashes_from_db_cached(paths: List[str]) -> Dict[str, str]:
     return get_phashes_from_db(paths=paths)
 
 
@@ -144,7 +145,7 @@ def show_duplication_results_and_add_to_deletion(paths: List[str]):
 
 
 @st.cache_resource(max_entries=1)
-def get_grouped_duplicates_cached(**kwargs):
+def get_grouped_duplicates_cached(**kwargs) -> List[List[str]]:
     return get_grouped_duplicates(**kwargs)
 
 
