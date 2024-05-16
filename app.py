@@ -9,6 +9,7 @@ from PIL import Image
 from image_dedup.convert import get_resized_image, read_image
 from src.utils import (
     INPUT_ROOT_DIR,
+    PHASH_DB,
     get_grouped_duplicates,
     get_input_paths,
     get_num_pending_jobs,
@@ -18,7 +19,7 @@ from src.utils import (
 logger = logging.getLogger(__name__)
 
 
-@st.cache_resource(ttl=3600, show_spinner=False)
+@st.cache_resource(max_entries=1, show_spinner=False)
 def get_paths_and_update_cache():
     time_start = time.time()
     with st.spinner(f"Scanning for files in {INPUT_ROOT_DIR}..."):
@@ -58,6 +59,7 @@ def get_preview(p: str) -> Image.Image:
 def clean_up_and_stop_app():
     st.session_state["current_duplication_group"] = 0
     st.cache_resource.clear()
+    os.remove(path=PHASH_DB)
     st.rerun()
 
 
