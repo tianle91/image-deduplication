@@ -12,7 +12,7 @@ def get_grouped_duplicates(
 
     available_paths = list(phashes.keys())
     X = np.array([[int(c, 16) for c in phash] for phash in phashes.values()])
-    clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming")
+    clustering = DBSCAN(eps=eps, min_samples=2, metric="hamming", n_jobs=-1)
     clustering.fit(X)
     grouped_duplicates = {}
     for i, label in enumerate(clustering.labels_):
