@@ -20,3 +20,7 @@ test: pre-commit
 .PHONY: run
 run:
 	.venv/bin/python -m streamlit run app.py
+
+.PHONY: dev
+dev:
+   CACHE_PATH=cache INPUT_PATH=sampledir .venv/bin/python -m streamlit run app.py
