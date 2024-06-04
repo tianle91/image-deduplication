@@ -1,12 +1,14 @@
 import numpy as np
 from PIL import Image
-from scipy.fftpack import dct
 
+HASH_WIDTH = 8
 
 def get_phash(img: Image.Image) -> str:
-    img = img.resize(size=(32, 32), resample=Image.NEAREST).convert("L")
+    img = img.resize(size=(HASH_WIDTH, HASH_WIDTH), resample=Image.NEAREST)
     img_arr = np.array(img).astype("uint8")
-    dct_arr = dct(dct(img_arr, axis=0), axis=1)[:8, :8]
-    dct_median = np.median(np.ndarray.flatten(dct_arr)[1:])
-    phash_arr = dct_arr < dct_median
-    return "".join("%0.2x" % x for x in np.packbits(phash_arr))
+    medians = np.tile(np.median(img_arr, axis=[0, 1]).astype("uint8"), reps=(HASH_WIDTH, HASH_WIDTH, 1))
+    hash_arr = img_arr < medians
+    return "".join("%0.2x" % x for x in np.packbits(hash_arr.flatten()))
+
+if __name__ == '__main__':
+    print(get_phash(Image.open('sampledir/AB780CA7-DAFB-49BA-A4EC-5E93AAC57381_4_5005_c.jpeg')))
